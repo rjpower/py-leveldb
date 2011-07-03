@@ -23,14 +23,42 @@ static PyObject* PyLevelDB_new(PyTypeObject* type, PyObject* args, PyObject* kwd
 	return (PyObject*)self;
 }
 
-static PyObject* PyLevelDB_HelloWorld(PyLevelDB* self)
+static PyObject* PyLevelDB_Put(PyLevelDB* self, PyObject* args, PyObject* kwds)
 {
+	PyObject* sync = Py_False;
+	Py_buffer key, value;
+	static char* kwargs[] = {"key", "value", "sync", 0};
+
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "s*s*|O!", kwargs, &key, &value, &PyBool_Type, &sync))
+		return 0;
+
+	leveldb::Slice key_slice((const char*)key.buf, (size_t)key.len);
+	leveldb::Slice value_slice((const char*)value.buf, (size_t)value.len);
+
+	leveldb::WriteOptions options;
+	options.sync = (sync == Py_True) ? true : false;
+
+	leveldb::Status status;
+
+	Py_BEGIN_ALLOW_THREADS
+	status = self->db->Put(options, key_slice, value_slice);
+	Py_END_ALLOW_THREADS
+
+	PyBuffer_Release(&key);
+	PyBuffer_Release(&value);
+
+	if (!status.ok()) {
+		// TBD: exception
+		printf("put failure\n");
+		return 0;
+	}
+
 	Py_INCREF(Py_None);
 	return Py_None;
 }
 
 static PyMethodDef PyLevelDB_methods[] = {
-	{"HelloWorld",    (PyCFunction)PyLevelDB_HelloWorld, METH_NOARGS, "do something silly" },
+	{"Put",    (PyCFunction)PyLevelDB_Put, METH_KEYWORDS, "add a key/value pair to database, with an optional synchronous disk write" },
 	{NULL}
 };
 

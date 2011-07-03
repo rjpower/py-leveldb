@@ -1,8 +1,8 @@
 import sys
 from distutils.core import setup, Extension
 
-extra_compile_args = ['-I./leveldb-read-only/include', '-pedantic', '-std=c99', '-Wall', '-Wextra', '-Wno-strict-prototypes', '-g', '-D_GNU_SOURCE', '-O2', '-DNDEBUG']
-extra_link_args = ['-Bdynamic', '-lm']
+extra_compile_args = ['-I./leveldb-read-only/include', '-fPIC', '-pedantic', '-std=c99', '-Wall', '-Wno-strict-prototypes', '-g', '-D_GNU_SOURCE', '-O2', '-DNDEBUG']
+extra_link_args = ['-Bdynamic', '-lm', '-L./leveldb-read-only', '-Bstatic', '-lleveldb']
 
 setup(
 	name = 'leveldb',

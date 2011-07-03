@@ -8,3 +8,5 @@ import leveldb
 sys.path = p
 
 print leveldb
+db = leveldb.LevelDB('./db')
+db.Put('a', 'b' * 1000000, sync = False)
