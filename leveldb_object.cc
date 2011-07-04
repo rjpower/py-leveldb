@@ -1,5 +1,41 @@
 #include "leveldb_ext.h"
 
+static void PyLevelDB_set_error(leveldb::Status& status)
+{
+	extern PyObject* leveldb_exception;
+	PyErr_SetString(leveldb_exception, status.ToString().c_str());
+}
+
+const char leveldb_repair_db_doc[] =
+"leveldb.RepairDB(db_dir)\n"
+;
+PyObject* leveldb_repair_db(PyObject* self, PyObject* args)
+{
+	const char* db_dir = 0;
+
+	if (!PyArg_ParseTuple(args, "s", &db_dir))
+		return 0;
+
+	std::string _db_dir(db_dir);
+	leveldb::Status status;
+	leveldb::Options options;
+
+
+	Py_BEGIN_ALLOW_THREADS
+	status = leveldb::RepairDB(_db_dir.c_str(), options);
+	Py_END_ALLOW_THREADS
+
+	if (!status.ok()) {
+		PyLevelDB_set_error(status);
+		return 0;
+	}
+
+
+	Py_INCREF(Py_None);
+	return Py_None;
+}
+
+
 static void PyLevelDB_dealloc(PyLevelDB* self)
 {
 	if (self->db) {
@@ -48,8 +84,7 @@ static PyObject* PyLevelDB_Put(PyLevelDB* self, PyObject* args, PyObject* kwds)
 	PyBuffer_Release(&value);
 
 	if (!status.ok()) {
-		// TBD: exception
-		printf("put failure\n");
+		PyLevelDB_set_error(status);
 		return 0;
 	}
 
@@ -57,8 +92,47 @@ static PyObject* PyLevelDB_Put(PyLevelDB* self, PyObject* args, PyObject* kwds)
 	return Py_None;
 }
 
+static PyObject* PyLevelDB_Get(PyLevelDB* self, PyObject* args, PyObject* kwds)
+{
+	PyObject* verify_checksums = Py_False;
+	PyObject* fill_cache = Py_True;
+	Py_buffer key;
+	static char* kwargs[] = {"key", "verify_checksums", "fill_cache", 0};
+
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "s*|O!O!", kwargs, &key, &PyBool_Type, &verify_checksums, &PyBool_Type, &fill_cache))
+		return 0;
+
+	leveldb::Slice key_slice((const char*)key.buf, (size_t)key.len);
+
+	leveldb::ReadOptions options;
+	options.verify_checksums = (verify_checksums == Py_True) ? true : false;
+	options.fill_cache = (fill_cache == Py_True) ? true : false;
+	leveldb::Status status;
+	std::string value;
+
+	Py_BEGIN_ALLOW_THREADS
+	status = self->db->Get(options, key_slice, &value);
+	Py_END_ALLOW_THREADS
+
+	PyBuffer_Release(&key);
+
+	if (status.IsNotFound()) {
+		PyErr_SetNone(PyExc_KeyError);
+		return 0;
+	}
+
+	if (!status.ok()) {
+		PyLevelDB_set_error(status);
+		return 0;
+	}
+
+	return PyString_FromStringAndSize(value.c_str(), value.length());
+}
+
+
 static PyMethodDef PyLevelDB_methods[] = {
-	{"Put",    (PyCFunction)PyLevelDB_Put, METH_KEYWORDS, "add a key/value pair to database, with an optional synchronous disk write" },
+	{"Put", (PyCFunction)PyLevelDB_Put, METH_KEYWORDS, "add a key/value pair to database, with an optional synchronous disk write" },
+	{"Get", (PyCFunction)PyLevelDB_Get, METH_KEYWORDS, "get a value from the database" },
 	{NULL}
 };
 
@@ -83,13 +157,15 @@ static int PyLevelDB_init(PyLevelDB* self, PyObject* args, PyObject* kwds)
 	options.create_if_missing = (create_if_missing == Py_True) ? true : false;
 	leveldb::Status status;
 
+	// copy string parameter, since we might lose when we release the GIL
+	std::string _db_dir(db_dir);
+
 	Py_BEGIN_ALLOW_THREADS
-	status = leveldb::DB::Open(options, db_dir, &self->db);
+	status = leveldb::DB::Open(options, _db_dir, &self->db);
 	Py_END_ALLOW_THREADS
 
 	if (!status.ok()) {
-		printf("error in open\n");
-		// TBD set exception
+		PyLevelDB_set_error(status);
 		return -1;
 	}
 

@@ -15,7 +15,7 @@ extern "C" {
 #define LEVELDB_FUNC_N_DOC(func) PyObject* func(PyObject* o, PyObject* args); extern const char func##_doc[]
 #define LEVELDB_FUNC_DEF(pyfunc, func) { pyfunc, func, METH_VARARGS, func##_doc}
 
-LEVELDB_FUNC_N_DOC(leveldb_hello_world);
+LEVELDB_FUNC_N_DOC(leveldb_repair_db);
 
 typedef struct {
 	PyObject_HEAD
