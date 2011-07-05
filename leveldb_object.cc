@@ -130,9 +130,40 @@ static PyObject* PyLevelDB_Get(PyLevelDB* self, PyObject* args, PyObject* kwds)
 }
 
 
+static PyObject* PyLevelDB_Delete(PyLevelDB* self, PyObject* args, PyObject* kwds)
+{
+	PyObject* sync = Py_False;
+	Py_buffer key;
+	static char* kwargs[] = {"key", "sync", 0};
+
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "s*|O!", kwargs, &key, &PyBool_Type, &sync))
+		return 0;
+
+	leveldb::Slice key_slice((const char*)key.buf, (size_t)key.len);
+
+	leveldb::WriteOptions options;
+	options.sync = (sync == Py_True) ? true : false;
+
+	leveldb::Status status;
+
+	Py_BEGIN_ALLOW_THREADS
+	status = self->db->Delete(options, key_slice);
+	Py_END_ALLOW_THREADS
+
+	PyBuffer_Release(&key);
+
+	if (!status.ok()) {
+		PyLevelDB_set_error(status);
+		return 0;
+	}
+
+	Py_INCREF(Py_None);
+	return Py_None;
+}
 static PyMethodDef PyLevelDB_methods[] = {
-	{"Put", (PyCFunction)PyLevelDB_Put, METH_KEYWORDS, "add a key/value pair to database, with an optional synchronous disk write" },
-	{"Get", (PyCFunction)PyLevelDB_Get, METH_KEYWORDS, "get a value from the database" },
+	{"Put",    (PyCFunction)PyLevelDB_Put,       METH_KEYWORDS, "add a key/value pair to database, with an optional synchronous disk write" },
+	{"Get",    (PyCFunction)PyLevelDB_Get,       METH_KEYWORDS, "get a value from the database" },
+	{"Delete", (PyCFunction)PyLevelDB_Delete,    METH_KEYWORDS, "delete a value in the database" },
 	{NULL}
 };
 
@@ -148,13 +179,39 @@ static int PyLevelDB_init(PyLevelDB* self, PyObject* args, PyObject* kwds)
 	const char* db_dir = 0;
 
 	PyObject* create_if_missing = Py_True;
-	static char* kwargs[] = {"filename", "create_if_missing", 0};
+	PyObject* error_if_exists = Py_False;
+	PyObject* paranoid_checks = Py_False;
+	int write_buffer_size = 4<<20;
+	int block_size = 4096;
+	int max_open_files = 1000;
+	int block_restart_interval = 16;
+	static char* kwargs[] = {"filename", "create_if_missing", "error_if_exists", "paranoid_checks", "write_buffer_size", "block_size", "max_open_files", "block_restart_interval", 0};
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, "s|O!", kwargs, &db_dir, &PyBool_Type, &create_if_missing))
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "s|O!O!O!iiii", kwargs,
+		&db_dir,
+		&PyBool_Type, &create_if_missing,
+		&PyBool_Type, &error_if_exists,
+		&PyBool_Type, &paranoid_checks,
+		&write_buffer_size,
+		&block_size,
+		&max_open_files,
+		&block_restart_interval))
 		return -1;
+
+	if (write_buffer_size < 0 || block_size < 0 || max_open_files < 0 || block_restart_interval < 0) {
+		PyErr_SetString(PyExc_ValueError, "negative write_buffer_size/block_size/max_open_files/block_restart_interval");
+		return -1;
+	}
 
 	leveldb::Options options;
 	options.create_if_missing = (create_if_missing == Py_True) ? true : false;
+	options.error_if_exists = (error_if_exists == Py_True) ? true : false;
+	options.paranoid_checks = (paranoid_checks == Py_True) ? true : false;
+	options.write_buffer_size = write_buffer_size;
+	options.block_size = block_size;
+	options.max_open_files = max_open_files;
+	options.block_restart_interval = block_restart_interval;
+	options.compression = leveldb::kSnappyCompression;
 	leveldb::Status status;
 
 	// copy string parameter, since we might lose when we release the GIL
