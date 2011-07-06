@@ -22,9 +22,15 @@ initleveldb(void)
 	if (PyType_Ready(&PyLevelDBType) < 0)
 		return;
 
+	if (PyType_Ready(&PyWriteBatchType) < 0)
+		return;
+
 	// add custom types to the different modules
 	Py_INCREF(&PyLevelDBType);
-	TRY_MODULE_ADD_OBJECT(leveldb_module, "LevelDB",               (PyObject*)&PyLevelDBType);
+	TRY_MODULE_ADD_OBJECT(leveldb_module, "LevelDB", (PyObject*)&PyLevelDBType);
+
+	Py_INCREF(&PyWriteBatchType);
+	TRY_MODULE_ADD_OBJECT(leveldb_module, "WriteBatch", (PyObject*)&PyWriteBatchType);
 
 	// add custom exceptions
 	leveldb_exception = PyErr_NewException("lebeldb.LevelDBError", 0, 0);

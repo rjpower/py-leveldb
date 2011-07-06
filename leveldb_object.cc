@@ -20,7 +20,6 @@ PyObject* leveldb_repair_db(PyObject* self, PyObject* args)
 	leveldb::Status status;
 	leveldb::Options options;
 
-
 	Py_BEGIN_ALLOW_THREADS
 	status = leveldb::RepairDB(_db_dir.c_str(), options);
 	Py_END_ALLOW_THREADS
@@ -30,11 +29,9 @@ PyObject* leveldb_repair_db(PyObject* self, PyObject* args)
 		return 0;
 	}
 
-
 	Py_INCREF(Py_None);
 	return Py_None;
 }
-
 
 static void PyLevelDB_dealloc(PyLevelDB* self)
 {
@@ -48,12 +45,34 @@ static void PyLevelDB_dealloc(PyLevelDB* self)
 	Py_TYPE(self)->tp_free(self);
 }
 
+static void PyWriteBatch_dealloc(PyWriteBatch* self)
+{
+	delete self->ops;
+	Py_TYPE(self)->tp_free(self);
+}
+
 static PyObject* PyLevelDB_new(PyTypeObject* type, PyObject* args, PyObject* kwds)
 {
 	PyLevelDB* self = (PyLevelDB*)type->tp_alloc(type, 0);
 
 	if (self) {
 		self->db = 0;
+	}
+
+	return (PyObject*)self;
+}
+
+static PyObject* PyWriteBatch_new(PyTypeObject* type, PyObject* args, PyObject* kwds)
+{
+	PyWriteBatch* self = (PyWriteBatch*)type->tp_alloc(type, 0);
+
+	if (self) {
+		self->ops = new std::vector<PyWriteBatchEntry>;
+
+		if (self->ops == 0) {
+			Py_TYPE(self)->tp_free(self);
+			return PyErr_NoMemory();
+		}
 	}
 
 	return (PyObject*)self;
@@ -129,7 +148,6 @@ static PyObject* PyLevelDB_Get(PyLevelDB* self, PyObject* args, PyObject* kwds)
 	return PyString_FromStringAndSize(value.c_str(), value.length());
 }
 
-
 static PyObject* PyLevelDB_Delete(PyLevelDB* self, PyObject* args, PyObject* kwds)
 {
 	PyObject* sync = Py_False;
@@ -160,10 +178,100 @@ static PyObject* PyLevelDB_Delete(PyLevelDB* self, PyObject* args, PyObject* kwd
 	Py_INCREF(Py_None);
 	return Py_None;
 }
+
+static PyObject* PyLevelDB_Write(PyLevelDB* self, PyObject* args, PyObject* kwds)
+{
+	PyWriteBatch* write_batch = 0;
+	PyObject* sync = Py_False;
+	static char* kwargs[] = {"write_batch", "sync", 0};
+
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "O!|O!", kwargs, &PyWriteBatchType, &write_batch, &PyBool_Type, &sync))
+		return 0;
+
+	leveldb::WriteOptions options;
+	options.sync = (sync == Py_True) ? true : false;
+
+	leveldb::WriteBatch batch;
+	leveldb::Status status;
+
+	for (size_t i = 0; i < write_batch->ops->size(); i++) {
+		PyWriteBatchEntry& op = (*write_batch->ops)[i];
+		leveldb::Slice key(op.key.c_str(), op.key.size());
+		leveldb::Slice value(op.value.c_str(), op.value.size());
+
+		if (op.is_put) {
+			batch.Put(key, value);
+		} else {
+			batch.Delete(key);
+		}
+	}
+
+	Py_BEGIN_ALLOW_THREADS
+	status = self->db->Write(options, &batch);
+	Py_END_ALLOW_THREADS
+
+	if (!status.ok()) {
+		PyLevelDB_set_error(status);
+		return 0;
+	}
+
+	Py_INCREF(Py_None);
+	return Py_None;
+}
+
+static PyObject* PyWriteBatch_Put(PyWriteBatch* self, PyObject* args)
+{
+	// NOTE: we copy all buffers
+	Py_buffer key, value;
+
+	if (!PyArg_ParseTuple(args, "s*s*", &key, &value))
+		return 0;
+
+	PyWriteBatchEntry op;
+	op.is_put = true;
+	op.key = std::string((const char*)key.buf, (size_t)key.len);
+	op.value = std::string((const char*)value.buf, (size_t)value.len);
+
+	PyBuffer_Release(&key);
+	PyBuffer_Release(&value);
+
+	self->ops->push_back(op);
+
+	Py_INCREF(Py_None);
+	return Py_None;
+}
+
+static PyObject* PyWriteBatch_Delete(PyWriteBatch* self, PyObject* args)
+{
+	// NOTE: we copy all buffers
+	Py_buffer key;
+
+	if (!PyArg_ParseTuple(args, "s*", &key))
+		return 0;
+
+	PyWriteBatchEntry op;
+	op.is_put = false;
+	op.key = std::string((const char*)key.buf, (size_t)key.len);
+
+	PyBuffer_Release(&key);
+
+	self->ops->push_back(op);
+
+	Py_INCREF(Py_None);
+	return Py_None;
+}
+
 static PyMethodDef PyLevelDB_methods[] = {
-	{"Put",    (PyCFunction)PyLevelDB_Put,       METH_KEYWORDS, "add a key/value pair to database, with an optional synchronous disk write" },
-	{"Get",    (PyCFunction)PyLevelDB_Get,       METH_KEYWORDS, "get a value from the database" },
-	{"Delete", (PyCFunction)PyLevelDB_Delete,    METH_KEYWORDS, "delete a value in the database" },
+	{"Put",    (PyCFunction)PyLevelDB_Put,    METH_KEYWORDS, "add a key/value pair to database, with an optional synchronous disk write" },
+	{"Get",    (PyCFunction)PyLevelDB_Get,    METH_KEYWORDS, "get a value from the database" },
+	{"Delete", (PyCFunction)PyLevelDB_Delete, METH_KEYWORDS, "delete a value in the database" },
+	{"Write",  (PyCFunction)PyLevelDB_Write,  METH_KEYWORDS, "apply a write-batch"},
+	{NULL}
+};
+
+static PyMethodDef PyWriteBatch_methods[] = {
+	{"Put",    (PyCFunction)PyWriteBatch_Put,    METH_VARARGS, "add a put op to batch" },
+	{"Delete", (PyCFunction)PyWriteBatch_Delete, METH_VARARGS, "add a delete op to batch" },
 	{NULL}
 };
 
@@ -229,44 +337,98 @@ static int PyLevelDB_init(PyLevelDB* self, PyObject* args, PyObject* kwds)
 	return 0;
 }
 
+static int PyWriteBatch_init(PyWriteBatch* self, PyObject* args, PyObject* kwds)
+{
+	self->ops->clear();
+	static char* kwargs[] = {0};
+
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "", kwargs))
+		return -1;
+
+	return 0;
+}
+
 PyTypeObject PyLevelDBType = {
 	PyObject_HEAD_INIT(NULL)
-	0,                               /*ob_size*/
-	"leveldb.LevelDB",         /*tp_name*/
+	0,                             /*ob_size*/
+	"leveldb.LevelDB",             /*tp_name*/
 	sizeof(PyLevelDB),             /*tp_basicsize*/
-	0,                               /*tp_itemsize*/
+	0,                             /*tp_itemsize*/
 	(destructor)PyLevelDB_dealloc, /*tp_dealloc*/
-	0,                               /*tp_print*/
-	0,                               /*tp_getattr*/
-	0,                               /*tp_setattr*/
-	0,                               /*tp_compare*/
-	0,                               /*tp_repr*/
-	0,                               /*tp_as_number*/
-	0,                               /*tp_as_sequence*/
-	0,                               /*tp_as_mapping*/
-	0,                               /*tp_hash */
-	0,                               /*tp_call*/
-	0,                               /*tp_str*/
-	0,                               /*tp_getattro*/
-	0,                               /*tp_setattro*/
-	0,                               /*tp_as_buffer*/
-	Py_TPFLAGS_DEFAULT,              /*tp_flags*/
+	0,                             /*tp_print*/
+	0,                             /*tp_getattr*/
+	0,                             /*tp_setattr*/
+	0,                             /*tp_compare*/
+	0,                             /*tp_repr*/
+	0,                             /*tp_as_number*/
+	0,                             /*tp_as_sequence*/
+	0,                             /*tp_as_mapping*/
+	0,                             /*tp_hash */
+	0,                             /*tp_call*/
+	0,                             /*tp_str*/
+	0,                             /*tp_getattro*/
+	0,                             /*tp_setattro*/
+	0,                             /*tp_as_buffer*/
+	Py_TPFLAGS_DEFAULT,            /*tp_flags*/
 	"PyLevelDB wrapper",           /*tp_doc */
-	0,                               /*tp_traverse */
-	0,                               /*tp_clear */
-	0,                               /*tp_richcompare */
-	0,                               /*tp_weaklistoffset */
-	0,                               /*tp_iter */
-	0,                               /*tp_iternext */
+	0,                             /*tp_traverse */
+	0,                             /*tp_clear */
+	0,                             /*tp_richcompare */
+	0,                             /*tp_weaklistoffset */
+	0,                             /*tp_iter */
+	0,                             /*tp_iternext */
 	PyLevelDB_methods,             /*tp_methods */
-	0,                               /*tp_members */
-	0,                               /*tp_getset */
-	0,                               /*tp_base */
-	0,                               /*tp_dict */
-	0,                               /*tp_descr_get */
-	0,                               /*tp_descr_set */
-	0,                               /*tp_dictoffset */
+	0,                             /*tp_members */
+	0,                             /*tp_getset */
+	0,                             /*tp_base */
+	0,                             /*tp_dict */
+	0,                             /*tp_descr_get */
+	0,                             /*tp_descr_set */
+	0,                             /*tp_dictoffset */
 	(initproc)PyLevelDB_init,      /*tp_init */
-	0,                               /*tp_alloc */
+	0,                             /*tp_alloc */
 	PyLevelDB_new,                 /*tp_new */
+};
+
+
+PyTypeObject PyWriteBatchType = {
+	PyObject_HEAD_INIT(NULL)
+	0,                                /*ob_size*/
+	"leveldb.WriteBatch",             /*tp_name*/
+	sizeof(PyWriteBatch),             /*tp_basicsize*/
+	0,                                /*tp_itemsize*/
+	(destructor)PyWriteBatch_dealloc, /*tp_dealloc*/
+	0,                                /*tp_print*/
+	0,                                /*tp_getattr*/
+	0,                                /*tp_setattr*/
+	0,                                /*tp_compare*/
+	0,                                /*tp_repr*/
+	0,                                /*tp_as_number*/
+	0,                                /*tp_as_sequence*/
+	0,                                /*tp_as_mapping*/
+	0,                                /*tp_hash */
+	0,                                /*tp_call*/
+	0,                                /*tp_str*/
+	0,                                /*tp_getattro*/
+	0,                                /*tp_setattro*/
+	0,                                /*tp_as_buffer*/
+	Py_TPFLAGS_DEFAULT,               /*tp_flags*/
+	"PyWriteBatch",                   /*tp_doc */
+	0,                                /*tp_traverse */
+	0,                                /*tp_clear */
+	0,                                /*tp_richcompare */
+	0,                                /*tp_weaklistoffset */
+	0,                                /*tp_iter */
+	0,                                /*tp_iternext */
+	PyWriteBatch_methods,             /*tp_methods */
+	0,                                /*tp_members */
+	0,                                /*tp_getset */
+	0,                                /*tp_base */
+	0,                                /*tp_dict */
+	0,                                /*tp_descr_get */
+	0,                                /*tp_descr_set */
+	0,                                /*tp_dictoffset */
+	(initproc)PyWriteBatch_init,      /*tp_init */
+	0,                                /*tp_alloc */
+	PyWriteBatch_new,                 /*tp_new */
 };
