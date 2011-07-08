@@ -37,13 +37,12 @@ PyObject* leveldb_repair_db(PyObject* self, PyObject* args)
 
 static void PyLevelDB_dealloc(PyLevelDB* self)
 {
-	if (self->db) {
-		Py_BEGIN_ALLOW_THREADS
-		delete self->db;
-		Py_END_ALLOW_THREADS
-		self->db = 0;
-	}
-
+	Py_BEGIN_ALLOW_THREADS
+	delete self->_db;
+	delete self->_options;
+	Py_END_ALLOW_THREADS
+	self->_db = 0;
+	self->_options = 0;
 	Py_TYPE(self)->tp_free(self);
 }
 
@@ -58,7 +57,8 @@ static PyObject* PyLevelDB_new(PyTypeObject* type, PyObject* args, PyObject* kwd
 	PyLevelDB* self = (PyLevelDB*)type->tp_alloc(type, 0);
 
 	if (self) {
-		self->db = 0;
+		self->_db = 0;
+		self->_options = 0;
 	}
 
 	return (PyObject*)self;
@@ -98,7 +98,7 @@ static PyObject* PyLevelDB_Put(PyLevelDB* self, PyObject* args, PyObject* kwds)
 	leveldb::Status status;
 
 	Py_BEGIN_ALLOW_THREADS
-	status = self->db->Put(options, key_slice, value_slice);
+	status = self->_db->Put(options, key_slice, value_slice);
 	Py_END_ALLOW_THREADS
 
 	PyBuffer_Release(&key);
@@ -132,7 +132,7 @@ static PyObject* PyLevelDB_Get(PyLevelDB* self, PyObject* args, PyObject* kwds)
 	std::string value;
 
 	Py_BEGIN_ALLOW_THREADS
-	status = self->db->Get(options, key_slice, &value);
+	status = self->_db->Get(options, key_slice, &value);
 	Py_END_ALLOW_THREADS
 
 	PyBuffer_Release(&key);
@@ -167,7 +167,7 @@ static PyObject* PyLevelDB_Delete(PyLevelDB* self, PyObject* args, PyObject* kwd
 	leveldb::Status status;
 
 	Py_BEGIN_ALLOW_THREADS
-	status = self->db->Delete(options, key_slice);
+	status = self->_db->Delete(options, key_slice);
 	Py_END_ALLOW_THREADS
 
 	PyBuffer_Release(&key);
@@ -251,7 +251,7 @@ static PyObject* PyLevelDB_Write(PyLevelDB* self, PyObject* args, PyObject* kwds
 	}
 
 	Py_BEGIN_ALLOW_THREADS
-	status = self->db->Write(options, &batch);
+	status = self->_db->Write(options, &batch);
 	Py_END_ALLOW_THREADS
 
 	if (!status.ok()) {
@@ -299,7 +299,7 @@ static PyObject* PyLevelDB_RangeIter(PyLevelDB* self, PyObject* args, PyObject* 
 	leveldb::Iterator* iter = 0;
 
 	Py_BEGIN_ALLOW_THREADS
-	iter = self->db->NewIterator(options);
+	iter = self->_db->NewIterator(options);
 	Py_END_ALLOW_THREADS
 
 	if (iter == 0)
@@ -351,13 +351,18 @@ static PyMethodDef PyWriteBatch_methods[] = {
 
 static int PyLevelDB_init(PyLevelDB* self, PyObject* args, PyObject* kwds)
 {
-	if (self->db) {
+	// cleanup
+	if (self->_db) {
 		Py_BEGIN_ALLOW_THREADS
-		delete self->db;
+		delete self->_db;
 		Py_END_ALLOW_THREADS
-		self->db = 0;
+		self->_db = 0;
 	}
 
+	delete self->_options;
+	self->_options = 0;
+
+	// get params
 	const char* db_dir = 0;
 
 	PyObject* create_if_missing = Py_True;
@@ -385,22 +390,29 @@ static int PyLevelDB_init(PyLevelDB* self, PyObject* args, PyObject* kwds)
 		return -1;
 	}
 
-	leveldb::Options options;
-	options.create_if_missing = (create_if_missing == Py_True) ? true : false;
-	options.error_if_exists = (error_if_exists == Py_True) ? true : false;
-	options.paranoid_checks = (paranoid_checks == Py_True) ? true : false;
-	options.write_buffer_size = write_buffer_size;
-	options.block_size = block_size;
-	options.max_open_files = max_open_files;
-	options.block_restart_interval = block_restart_interval;
-	options.compression = leveldb::kSnappyCompression;
+	// open database
+	self->_options = new leveldb::Options();
+
+	if (self->_options == 0) {
+		PyErr_NoMemory();
+		return -1;
+	}
+
+	self->_options->create_if_missing = (create_if_missing == Py_True) ? true : false;
+	self->_options->error_if_exists = (error_if_exists == Py_True) ? true : false;
+	self->_options->paranoid_checks = (paranoid_checks == Py_True) ? true : false;
+	self->_options->write_buffer_size = write_buffer_size;
+	self->_options->block_size = block_size;
+	self->_options->max_open_files = max_open_files;
+	self->_options->block_restart_interval = block_restart_interval;
+	self->_options->compression = leveldb::kSnappyCompression;
 	leveldb::Status status;
 
-	// copy string parameter, since we might lose when we release the GIL
+	// note: copy string parameter, since we might lose when we release the GIL
 	std::string _db_dir(db_dir);
 
 	Py_BEGIN_ALLOW_THREADS
-	status = leveldb::DB::Open(options, _db_dir, &self->db);
+	status = leveldb::DB::Open(*self->_options, _db_dir, &self->_db);
 	Py_END_ALLOW_THREADS
 
 	if (!status.ok()) {
@@ -514,11 +526,19 @@ typedef struct {
 	std::string* to;
 } LevelDBIter;
 
-static void LevelDBIter_dealloc(LevelDBIter* iter)
+static void LevelDBIter_clean(LevelDBIter* iter)
 {
     Py_XDECREF(iter->_db);
 	delete iter->iterator;
 	delete iter->to;
+	iter->_db = 0;
+	iter->iterator = 0;
+	iter->to = 0;
+}
+
+static void LevelDBIter_dealloc(LevelDBIter* iter)
+{
+	LevelDBIter_clean(iter);
 	PyObject_GC_Del(iter);
 }
 
@@ -532,16 +552,20 @@ static PyObject* LevelDBIter_next(LevelDBIter* iter)
 {
 	// empty, do cleanup (idempotent)
 	if (iter->_db == 0 || !iter->iterator->Valid()) {
-		// cleanup
-		delete iter->iterator;
-		delete iter->to;
-		Py_XDECREF(iter->_db);
-
-		iter->iterator = 0;
-		iter->to = 0;
-		iter->_db = 0;
-
+		LevelDBIter_clean(iter);
 		return 0;
+	}
+
+	// if we have an upper bound, and we have run past it, clean up and return
+	if (iter->to) {
+		leveldb::Slice a = leveldb::Slice(iter->to->c_str(), iter->to->size());
+		leveldb::Slice b = iter->iterator->key();
+		int c = iter->_db->_options->comparator->Compare(a, b);
+
+		if (!(0 <= c)) {
+			LevelDBIter_clean(iter);
+			return 0;
+		}
 	}
 
 	// get current value
@@ -588,7 +612,7 @@ PyTypeObject PyLevelDBIter_Type = {
     0,                               /* tp_as_buffer */
     Py_TPFLAGS_DEFAULT  | Py_TPFLAGS_HAVE_GC, /* tp_flags */
     0,                               /* tp_doc */
-    (traverseproc)LevelDBIter_traverse,                               /* tp_traverse */
+    (traverseproc)LevelDBIter_traverse,  /* tp_traverse */
     0,                               /* tp_clear */
     0,                               /* tp_richcompare */
     0,                               /* tp_weaklistoffset */

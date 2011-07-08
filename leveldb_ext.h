@@ -12,6 +12,7 @@ extern "C" {
 
 #include <leveldb/db.h>
 #include <leveldb/write_batch.h>
+#include <leveldb/comparator.h>
 
 #include <vector>
 
@@ -22,7 +23,8 @@ LEVELDB_FUNC_N_DOC(leveldb_repair_db);
 
 typedef struct {
 	PyObject_HEAD
-	leveldb::DB* db;
+	leveldb::DB* _db;
+	leveldb::Options* _options;
 } PyLevelDB;
 
 typedef struct {
