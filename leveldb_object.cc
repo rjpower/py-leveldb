@@ -1,5 +1,7 @@
 #include "leveldb_ext.h"
 
+static PyObject* LevelDBIter_new(PyLevelDB* db, leveldb::Iterator* iterator, std::string* to);
+
 static void PyLevelDB_set_error(leveldb::Status& status)
 {
 	extern PyObject* leveldb_exception;
@@ -179,46 +181,6 @@ static PyObject* PyLevelDB_Delete(PyLevelDB* self, PyObject* args, PyObject* kwd
 	return Py_None;
 }
 
-static PyObject* PyLevelDB_Write(PyLevelDB* self, PyObject* args, PyObject* kwds)
-{
-	PyWriteBatch* write_batch = 0;
-	PyObject* sync = Py_False;
-	static char* kwargs[] = {"write_batch", "sync", 0};
-
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, "O!|O!", kwargs, &PyWriteBatchType, &write_batch, &PyBool_Type, &sync))
-		return 0;
-
-	leveldb::WriteOptions options;
-	options.sync = (sync == Py_True) ? true : false;
-
-	leveldb::WriteBatch batch;
-	leveldb::Status status;
-
-	for (size_t i = 0; i < write_batch->ops->size(); i++) {
-		PyWriteBatchEntry& op = (*write_batch->ops)[i];
-		leveldb::Slice key(op.key.c_str(), op.key.size());
-		leveldb::Slice value(op.value.c_str(), op.value.size());
-
-		if (op.is_put) {
-			batch.Put(key, value);
-		} else {
-			batch.Delete(key);
-		}
-	}
-
-	Py_BEGIN_ALLOW_THREADS
-	status = self->db->Write(options, &batch);
-	Py_END_ALLOW_THREADS
-
-	if (!status.ok()) {
-		PyLevelDB_set_error(status);
-		return 0;
-	}
-
-	Py_INCREF(Py_None);
-	return Py_None;
-}
-
 static PyObject* PyWriteBatch_Put(PyWriteBatch* self, PyObject* args)
 {
 	// NOTE: we copy all buffers
@@ -261,11 +223,123 @@ static PyObject* PyWriteBatch_Delete(PyWriteBatch* self, PyObject* args)
 	return Py_None;
 }
 
+static PyObject* PyLevelDB_Write(PyLevelDB* self, PyObject* args, PyObject* kwds)
+{
+	PyWriteBatch* write_batch = 0;
+	PyObject* sync = Py_False;
+	static char* kwargs[] = {"write_batch", "sync", 0};
+
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "O!|O!", kwargs, &PyWriteBatchType, &write_batch, &PyBool_Type, &sync))
+		return 0;
+
+	leveldb::WriteOptions options;
+	options.sync = (sync == Py_True) ? true : false;
+
+	leveldb::WriteBatch batch;
+	leveldb::Status status;
+
+	for (size_t i = 0; i < write_batch->ops->size(); i++) {
+		PyWriteBatchEntry& op = (*write_batch->ops)[i];
+		leveldb::Slice key(op.key.c_str(), op.key.size());
+		leveldb::Slice value(op.value.c_str(), op.value.size());
+
+		if (op.is_put) {
+			batch.Put(key, value);
+		} else {
+			batch.Delete(key);
+		}
+	}
+
+	Py_BEGIN_ALLOW_THREADS
+	status = self->db->Write(options, &batch);
+	Py_END_ALLOW_THREADS
+
+	if (!status.ok()) {
+		PyLevelDB_set_error(status);
+		return 0;
+	}
+
+	Py_INCREF(Py_None);
+	return Py_None;
+}
+
+static PyObject* PyLevelDB_RangeIter(PyLevelDB* self, PyObject* args, PyObject* kwds)
+{
+	Py_buffer a, b;
+	PyObject* verify_checksums = Py_False;
+	PyObject* fill_cache = Py_True;
+	static char* kwargs[] = {"key_from", "key_to", "verify_checksums", "fill_cache", 0};
+
+	a.buf = b.buf = 0;
+	a.len = b.len = 0;
+	a.obj = b.obj = 0;
+
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "|s*s*O!O!", kwargs, &a, &b, &PyBool_Type, &verify_checksums, &PyBool_Type, &fill_cache))
+		return 0;
+
+	leveldb::ReadOptions options;
+	options.verify_checksums = (verify_checksums == Py_True) ? true : false;
+	options.fill_cache = (fill_cache == Py_True) ? true : false;
+
+	int is_from = (a.obj != 0);
+	int is_to = (b.obj != 0);
+
+	std::string from = std::string((const char*)a.buf, (size_t)a.len);
+	std::string to = std::string((const char*)b.buf, (size_t)b.len);
+
+	leveldb::Slice key(from.c_str(), from.size());
+
+	if (a.obj)
+		PyBuffer_Release(&a);
+
+	if (b.obj)
+		PyBuffer_Release(&b);
+
+	// create iterator
+	leveldb::Iterator* iter = 0;
+
+	Py_BEGIN_ALLOW_THREADS
+	iter = self->db->NewIterator(options);
+	Py_END_ALLOW_THREADS
+
+	if (iter == 0)
+		return PyErr_NoMemory();
+
+	// position iterator
+	Py_BEGIN_ALLOW_THREADS
+	if (!is_from)
+		iter->SeekToFirst();
+	else
+		iter->Seek(key);
+	Py_END_ALLOW_THREADS
+
+	// if iterator is empty, return an empty iterator object
+	if (!iter->Valid()) {
+		delete iter;
+		return LevelDBIter_new(0, 0, 0);
+	}
+
+	// otherwise, we're good
+	std::string* s = 0;
+
+	if (is_to) {
+		s = new std::string(to);
+
+		if (s == 0) {
+			delete iter;
+			return PyErr_NoMemory();
+		}
+	}
+
+	return LevelDBIter_new(self, iter, s);
+}
+
 static PyMethodDef PyLevelDB_methods[] = {
-	{"Put",    (PyCFunction)PyLevelDB_Put,    METH_KEYWORDS, "add a key/value pair to database, with an optional synchronous disk write" },
-	{"Get",    (PyCFunction)PyLevelDB_Get,    METH_KEYWORDS, "get a value from the database" },
-	{"Delete", (PyCFunction)PyLevelDB_Delete, METH_KEYWORDS, "delete a value in the database" },
-	{"Write",  (PyCFunction)PyLevelDB_Write,  METH_KEYWORDS, "apply a write-batch"},
+	{"Put",       (PyCFunction)PyLevelDB_Put,       METH_KEYWORDS, "add a key/value pair to database, with an optional synchronous disk write" },
+	{"Get",       (PyCFunction)PyLevelDB_Get,       METH_KEYWORDS, "get a value from the database" },
+	{"Delete",    (PyCFunction)PyLevelDB_Delete,    METH_KEYWORDS, "delete a value in the database" },
+	{"Write",     (PyCFunction)PyLevelDB_Write,     METH_KEYWORDS, "apply a write-batch"},
+	{"RangeIter", (PyCFunction)PyLevelDB_RangeIter, METH_KEYWORDS, "key/value range scan"},
 	{NULL}
 };
 
@@ -432,3 +506,109 @@ PyTypeObject PyWriteBatchType = {
 	0,                                /*tp_alloc */
 	PyWriteBatch_new,                 /*tp_new */
 };
+
+typedef struct {
+    PyObject_HEAD
+    PyLevelDB* _db;
+	leveldb::Iterator* iterator;
+	std::string* to;
+} LevelDBIter;
+
+static void LevelDBIter_dealloc(LevelDBIter* iter)
+{
+    Py_XDECREF(iter->_db);
+	delete iter->iterator;
+	delete iter->to;
+	PyObject_GC_Del(iter);
+}
+
+static int LevelDBIter_traverse(LevelDBIter* iter, visitproc visit, void* arg)
+{
+	Py_VISIT(iter->_db);
+	return 0;
+}
+
+static PyObject* LevelDBIter_next(LevelDBIter* iter)
+{
+	// empty, do cleanup (idempotent)
+	if (iter->_db == 0 || !iter->iterator->Valid()) {
+		// cleanup
+		delete iter->iterator;
+		delete iter->to;
+		Py_XDECREF(iter->_db);
+
+		iter->iterator = 0;
+		iter->to = 0;
+		iter->_db = 0;
+
+		return 0;
+	}
+
+	// get current value
+	PyObject* key = PyString_FromStringAndSize(iter->iterator->key().data(), iter->iterator->key().size());
+	PyObject* value = PyString_FromStringAndSize(iter->iterator->value().data(), iter->iterator->value().size());
+	PyObject* tuple = PyTuple_New(2);
+
+	if (key == 0 || value == 0 || tuple == 0) {
+		Py_XDECREF(key);
+		Py_XDECREF(value);
+		Py_XDECREF(tuple);
+		return 0;
+	}
+
+	PyTuple_SET_ITEM(tuple, 0, key);
+	PyTuple_SET_ITEM(tuple, 1, value);
+
+	// get next value
+	iter->iterator->Next();
+
+	// return k/v pair
+	return tuple;
+}
+
+PyTypeObject PyLevelDBIter_Type = {
+    PyVarObject_HEAD_INIT(&PyType_Type, 0)
+    "leveldb-keyiterator",           /* tp_name */
+    sizeof(LevelDBIter),             /* tp_basicsize */
+    0,                               /* tp_itemsize */
+    (destructor)LevelDBIter_dealloc, /* tp_dealloc */
+    0,                               /* tp_print */
+    0,                               /* tp_getattr */
+    0,                               /* tp_setattr */
+    0,                               /* tp_compare */
+    0,                               /* tp_repr */
+    0,                               /* tp_as_number */
+    0,                               /* tp_as_sequence */
+    0,                               /* tp_as_mapping */
+    0,                               /* tp_hash */
+    0,                               /* tp_call */
+    0,                               /* tp_str */
+    PyObject_GenericGetAttr,         /* tp_getattro */
+    0,                               /* tp_setattro */
+    0,                               /* tp_as_buffer */
+    Py_TPFLAGS_DEFAULT  | Py_TPFLAGS_HAVE_GC, /* tp_flags */
+    0,                               /* tp_doc */
+    (traverseproc)LevelDBIter_traverse,                               /* tp_traverse */
+    0,                               /* tp_clear */
+    0,                               /* tp_richcompare */
+    0,                               /* tp_weaklistoffset */
+    PyObject_SelfIter,               /* tp_iter */
+    (iternextfunc)LevelDBIter_next,  /* tp_iternext */
+    0,                               /* tp_methods */
+    0,
+};
+
+static PyObject* LevelDBIter_new(PyLevelDB* db, leveldb::Iterator* iterator, std::string* to)
+{
+	LevelDBIter* iter = PyObject_GC_New(LevelDBIter, &PyLevelDBIter_Type);
+
+	if (iter == 0)
+		return 0;
+
+	Py_XINCREF(db);
+	iter->_db = db;
+	iter->iterator = iterator;
+	iter->to = to;
+	_PyObject_GC_TRACK(iter);
+	return (PyObject*)iter;
+}
