@@ -1,6 +1,6 @@
 #include "leveldb_ext.h"
 
-static PyObject* LevelDBIter_new(PyLevelDB* db, leveldb::Iterator* iterator, std::string* to);
+static PyObject* LevelDBIter_new(PyLevelDB* db, leveldb::Iterator* iterator, std::string* to, int include_value);
 
 static void PyLevelDB_set_error(leveldb::Status& status)
 {
@@ -268,13 +268,14 @@ static PyObject* PyLevelDB_RangeIter(PyLevelDB* self, PyObject* args, PyObject* 
 	Py_buffer a, b;
 	PyObject* verify_checksums = Py_False;
 	PyObject* fill_cache = Py_True;
-	static char* kwargs[] = {"key_from", "key_to", "verify_checksums", "fill_cache", 0};
+	PyObject* include_value = Py_True;
+	static char* kwargs[] = {"key_from", "key_to", "verify_checksums", "fill_cache", "include_value", 0};
 
 	a.buf = b.buf = 0;
 	a.len = b.len = 0;
 	a.obj = b.obj = 0;
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, "|s*s*O!O!", kwargs, &a, &b, &PyBool_Type, &verify_checksums, &PyBool_Type, &fill_cache))
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "|s*s*O!O!O!", kwargs, &a, &b, &PyBool_Type, &verify_checksums, &PyBool_Type, &fill_cache, &PyBool_Type, &include_value))
 		return 0;
 
 	leveldb::ReadOptions options;
@@ -316,7 +317,7 @@ static PyObject* PyLevelDB_RangeIter(PyLevelDB* self, PyObject* args, PyObject* 
 	// if iterator is empty, return an empty iterator object
 	if (!iter->Valid()) {
 		delete iter;
-		return LevelDBIter_new(0, 0, 0);
+		return LevelDBIter_new(0, 0, 0, 0);
 	}
 
 	// otherwise, we're good
@@ -331,7 +332,7 @@ static PyObject* PyLevelDB_RangeIter(PyLevelDB* self, PyObject* args, PyObject* 
 		}
 	}
 
-	return LevelDBIter_new(self, iter, s);
+	return LevelDBIter_new(self, iter, s, (include_value == Py_True) ? 1 : 0);
 }
 
 static PyObject* PyLevelDB_GetStatus(PyLevelDB* self)
@@ -537,6 +538,7 @@ typedef struct {
     PyLevelDB* _db;
 	leveldb::Iterator* iterator;
 	std::string* to;
+	int include_value;
 } LevelDBIter;
 
 static void LevelDBIter_clean(LevelDBIter* iter)
@@ -547,6 +549,7 @@ static void LevelDBIter_clean(LevelDBIter* iter)
 	iter->_db = 0;
 	iter->iterator = 0;
 	iter->to = 0;
+	iter->include_value = 0;
 }
 
 static void LevelDBIter_dealloc(LevelDBIter* iter)
@@ -581,26 +584,42 @@ static PyObject* LevelDBIter_next(LevelDBIter* iter)
 		}
 	}
 
-	// get current value
+	// get key and (optional) value
 	PyObject* key = PyString_FromStringAndSize(iter->iterator->key().data(), iter->iterator->key().size());
-	PyObject* value = PyString_FromStringAndSize(iter->iterator->value().data(), iter->iterator->value().size());
-	PyObject* tuple = PyTuple_New(2);
+	PyObject* value = 0;
+	PyObject* ret = key;
 
-	if (key == 0 || value == 0 || tuple == 0) {
-		Py_XDECREF(key);
-		Py_XDECREF(value);
-		Py_XDECREF(tuple);
+	if (key == 0)
 		return 0;
+
+	if (iter->include_value) {
+		value = PyString_FromStringAndSize(iter->iterator->value().data(), iter->iterator->value().size());
+
+		if (value == 0) {
+			Py_XDECREF(key);
+			return 0;
+		}
 	}
 
-	PyTuple_SET_ITEM(tuple, 0, key);
-	PyTuple_SET_ITEM(tuple, 1, value);
+	// key/value pairs are returned as 2-tuples
+	if (value) {
+		ret = PyTuple_New(2);
+
+		if (ret == 0) {
+			Py_DECREF(key);
+			Py_XDECREF(value);
+			return 0;
+		}
+
+		PyTuple_SET_ITEM(ret, 0, key);
+		PyTuple_SET_ITEM(ret, 1, value);
+	}
 
 	// get next value
 	iter->iterator->Next();
 
-	// return k/v pair
-	return tuple;
+	// return k/v pair or single key
+	return ret;
 }
 
 PyTypeObject PyLevelDBIter_Type = {
@@ -635,7 +654,7 @@ PyTypeObject PyLevelDBIter_Type = {
     0,
 };
 
-static PyObject* LevelDBIter_new(PyLevelDB* db, leveldb::Iterator* iterator, std::string* to)
+static PyObject* LevelDBIter_new(PyLevelDB* db, leveldb::Iterator* iterator, std::string* to, int include_value)
 {
 	LevelDBIter* iter = PyObject_GC_New(LevelDBIter, &PyLevelDBIter_Type);
 
@@ -646,6 +665,7 @@ static PyObject* LevelDBIter_new(PyLevelDB* db, leveldb::Iterator* iterator, std
 	iter->_db = db;
 	iter->iterator = iterator;
 	iter->to = to;
+	iter->include_value = include_value;
 	_PyObject_GC_TRACK(iter);
 	return (PyObject*)iter;
 }
