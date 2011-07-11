@@ -334,12 +334,25 @@ static PyObject* PyLevelDB_RangeIter(PyLevelDB* self, PyObject* args, PyObject* 
 	return LevelDBIter_new(self, iter, s);
 }
 
+static PyObject* PyLevelDB_GetStatus(PyLevelDB* self)
+{
+	std::string value;
+
+	if (!self->_db->GetProperty(leveldb::Slice("leveldb.stats"), &value)) {
+		PyErr_SetString(PyExc_ValueError, "unknown property");
+		return 0;
+	}
+
+	return PyString_FromString(value.c_str());
+}
+
 static PyMethodDef PyLevelDB_methods[] = {
 	{"Put",       (PyCFunction)PyLevelDB_Put,       METH_KEYWORDS, "add a key/value pair to database, with an optional synchronous disk write" },
 	{"Get",       (PyCFunction)PyLevelDB_Get,       METH_KEYWORDS, "get a value from the database" },
 	{"Delete",    (PyCFunction)PyLevelDB_Delete,    METH_KEYWORDS, "delete a value in the database" },
 	{"Write",     (PyCFunction)PyLevelDB_Write,     METH_KEYWORDS, "apply a write-batch"},
 	{"RangeIter", (PyCFunction)PyLevelDB_RangeIter, METH_KEYWORDS, "key/value range scan"},
+	{"GetStats",  (PyCFunction)PyLevelDB_GetStatus, METH_NOARGS,   "get a mapping of all DB statistics"},
 	{NULL}
 };
 
