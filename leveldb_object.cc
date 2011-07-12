@@ -40,9 +40,11 @@ static void PyLevelDB_dealloc(PyLevelDB* self)
 	Py_BEGIN_ALLOW_THREADS
 	delete self->_db;
 	delete self->_options;
+	delete self->_cache;
 	Py_END_ALLOW_THREADS
 	self->_db = 0;
 	self->_options = 0;
+	self->_cache = 0;
 	Py_TYPE(self)->tp_free(self);
 }
 
@@ -59,6 +61,7 @@ static PyObject* PyLevelDB_new(PyTypeObject* type, PyObject* args, PyObject* kwd
 	if (self) {
 		self->_db = 0;
 		self->_options = 0;
+		self->_cache = 0;
 	}
 
 	return (PyObject*)self;
@@ -366,15 +369,16 @@ static PyMethodDef PyWriteBatch_methods[] = {
 static int PyLevelDB_init(PyLevelDB* self, PyObject* args, PyObject* kwds)
 {
 	// cleanup
-	if (self->_db) {
+	if (self->_db || self->_cache || self->_options) {
 		Py_BEGIN_ALLOW_THREADS
 		delete self->_db;
+		delete self->_options;
+		delete self->_cache;
 		Py_END_ALLOW_THREADS
 		self->_db = 0;
+		self->_options = 0;
+		self->_cache = 0;
 	}
-
-	delete self->_options;
-	self->_options = 0;
 
 	// get params
 	const char* db_dir = 0;
@@ -382,13 +386,14 @@ static int PyLevelDB_init(PyLevelDB* self, PyObject* args, PyObject* kwds)
 	PyObject* create_if_missing = Py_True;
 	PyObject* error_if_exists = Py_False;
 	PyObject* paranoid_checks = Py_False;
+	int block_cache_size = 8 * (2 << 20);
 	int write_buffer_size = 4<<20;
 	int block_size = 4096;
 	int max_open_files = 1000;
 	int block_restart_interval = 16;
-	static char* kwargs[] = {"filename", "create_if_missing", "error_if_exists", "paranoid_checks", "write_buffer_size", "block_size", "max_open_files", "block_restart_interval", 0};
+	static char* kwargs[] = {"filename", "create_if_missing", "error_if_exists", "paranoid_checks", "write_buffer_size", "block_size", "max_open_files", "block_restart_interval", "block_cache_size", 0};
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, "s|O!O!O!iiii", kwargs,
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "s|O!O!O!iiiii", kwargs,
 		&db_dir,
 		&PyBool_Type, &create_if_missing,
 		&PyBool_Type, &error_if_exists,
@@ -396,18 +401,24 @@ static int PyLevelDB_init(PyLevelDB* self, PyObject* args, PyObject* kwds)
 		&write_buffer_size,
 		&block_size,
 		&max_open_files,
-		&block_restart_interval))
+		&block_restart_interval,
+		&block_cache_size))
 		return -1;
 
-	if (write_buffer_size < 0 || block_size < 0 || max_open_files < 0 || block_restart_interval < 0) {
-		PyErr_SetString(PyExc_ValueError, "negative write_buffer_size/block_size/max_open_files/block_restart_interval");
+	if (write_buffer_size < 0 || block_size < 0 || max_open_files < 0 || block_restart_interval < 0 || block_cache_size < 0) {
+		PyErr_SetString(PyExc_ValueError, "negative write_buffer_size/block_size/max_open_files/block_restart_interval/cache_size");
 		return -1;
 	}
 
 	// open database
 	self->_options = new leveldb::Options();
+	self->_cache = leveldb::NewLRUCache(block_cache_size);
 
-	if (self->_options == 0) {
+	if (self->_options == 0 || self->_cache == 0) {
+		delete self->_options;
+		delete self->_cache;
+		self->_options = 0;
+		self->_cache = 0;
 		PyErr_NoMemory();
 		return -1;
 	}
@@ -420,6 +431,7 @@ static int PyLevelDB_init(PyLevelDB* self, PyObject* args, PyObject* kwds)
 	self->_options->max_open_files = max_open_files;
 	self->_options->block_restart_interval = block_restart_interval;
 	self->_options->compression = leveldb::kSnappyCompression;
+	self->_options->block_cache = self->_cache;
 	leveldb::Status status;
 
 	// note: copy string parameter, since we might lose when we release the GIL
@@ -427,6 +439,16 @@ static int PyLevelDB_init(PyLevelDB* self, PyObject* args, PyObject* kwds)
 
 	Py_BEGIN_ALLOW_THREADS
 	status = leveldb::DB::Open(*self->_options, _db_dir, &self->_db);
+
+	if (!status.ok()) {
+		delete self->_db;
+		delete self->_options;
+		delete self->_cache;
+		self->_options = 0;
+		self->_cache = 0;
+		self->_db = 0;
+	}
+
 	Py_END_ALLOW_THREADS
 
 	if (!status.ok()) {

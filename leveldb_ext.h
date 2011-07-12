@@ -13,6 +13,7 @@ extern "C" {
 #include <leveldb/db.h>
 #include <leveldb/write_batch.h>
 #include <leveldb/comparator.h>
+#include <leveldb/cache.h>
 
 #include <vector>
 
@@ -25,6 +26,7 @@ typedef struct {
 	PyObject_HEAD
 	leveldb::DB* _db;
 	leveldb::Options* _options;
+	leveldb::Cache* _cache;
 } PyLevelDB;
 
 typedef struct {
