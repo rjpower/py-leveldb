@@ -1,3 +1,8 @@
+#!/usr/bin/python
+
+# Copyright (c) Arni Mar Jonsson.
+# See LICENSE for details.
+
 import sys
 from distutils.core import setup, Extension
 

@@ -1,3 +1,6 @@
+// Copyright (c) Arni Mar Jonsson.
+// See LICENSE for details.
+
 #ifndef __LEVELDB__MODULE__H__
 #define __LEVELDB__MODULE__H__
 

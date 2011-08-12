@@ -1,3 +1,6 @@
+// Copyright (c) Arni Mar Jonsson.
+// See LICENSE for details.
+
 #include "leveldb_ext.h"
 
 static PyObject* LevelDBIter_new(PyLevelDB* db, leveldb::Iterator* iterator, std::string* to, int include_value);

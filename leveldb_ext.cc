@@ -1,3 +1,6 @@
+// Copyright (c) Arni Mar Jonsson.
+// See LICENSE for details.
+
 #include "leveldb_ext.h"
 
 PyObject* leveldb_exception = 0;

@@ -1,5 +1,8 @@
 #!/usr/bin/python
 
+# Copyright (c) Arni Mar Jonsson.
+# See LICENSE for details.
+
 import sys, time
 
 p = sys.path
