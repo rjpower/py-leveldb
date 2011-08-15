@@ -1,6 +1,6 @@
 py-leveldb: a thread-safe wrapper for leveldb (http://code.google.com/p/leveldb/)
 
-Copyright (C) 2011  Arni Mar Jonsson (arnimarj@gmaiml.com)
+Copyright (C) 2011  Arni Mar Jonsson (arnimarj@gmail.com)
 
 This library is free software; you can redistribute it and/or
 modify it under the terms of the GNU Lesser General Public
