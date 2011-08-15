@@ -20,10 +20,8 @@ extern "C" {
 
 #include <vector>
 
-#define LEVELDB_FUNC_N_DOC(func) PyObject* func(PyObject* o, PyObject* args); extern const char func##_doc[]
-#define LEVELDB_FUNC_DEF(pyfunc, func) { pyfunc, func, METH_VARARGS, func##_doc}
-
-LEVELDB_FUNC_N_DOC(leveldb_repair_db);
+extern const char leveldb_repair_db_doc[];
+PyObject* leveldb_repair_db(PyObject* o, PyObject* args);
 
 typedef struct {
 	PyObject_HEAD
