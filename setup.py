@@ -33,7 +33,7 @@ setup(
 	],
 
 	#download_url = 'http://py-leveldb.googlecode.com/files/leveldb.-0.1.tar.gz',
-	description = 'Python wrappe for the leveldb database library',
+	description = 'Python wrapper for the leveldb database library',
 	# long_description = 
 
 	packages = ['leveldb'],
