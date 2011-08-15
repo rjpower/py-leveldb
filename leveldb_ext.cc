@@ -36,7 +36,7 @@ initleveldb(void)
 	TRY_MODULE_ADD_OBJECT(leveldb_module, "WriteBatch", (PyObject*)&PyWriteBatchType);
 
 	// add custom exceptions
-	leveldb_exception = PyErr_NewException("lebeldb.LevelDBError", 0, 0);
+	leveldb_exception = PyErr_NewException((char*)"lebeldb.LevelDBError", 0, 0);
 
 	if (leveldb_exception == 0)
 		return;

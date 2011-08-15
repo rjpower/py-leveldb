@@ -90,9 +90,9 @@ static PyObject* PyLevelDB_Put(PyLevelDB* self, PyObject* args, PyObject* kwds)
 {
 	PyObject* sync = Py_False;
 	Py_buffer key, value;
-	static char* kwargs[] = {"key", "value", "sync", 0};
+	const char* kwargs[] = {"key", "value", "sync", 0};
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, "s*s*|O!", kwargs, &key, &value, &PyBool_Type, &sync))
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "s*s*|O!", (char**)kwargs, &key, &value, &PyBool_Type, &sync))
 		return 0;
 
 	leveldb::Slice key_slice((const char*)key.buf, (size_t)key.len);
@@ -124,9 +124,9 @@ static PyObject* PyLevelDB_Get(PyLevelDB* self, PyObject* args, PyObject* kwds)
 	PyObject* verify_checksums = Py_False;
 	PyObject* fill_cache = Py_True;
 	Py_buffer key;
-	static char* kwargs[] = {"key", "verify_checksums", "fill_cache", 0};
+	const char* kwargs[] = {"key", "verify_checksums", "fill_cache", 0};
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, "s*|O!O!", kwargs, &key, &PyBool_Type, &verify_checksums, &PyBool_Type, &fill_cache))
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "s*|O!O!", (char**)kwargs, &key, &PyBool_Type, &verify_checksums, &PyBool_Type, &fill_cache))
 		return 0;
 
 	leveldb::Slice key_slice((const char*)key.buf, (size_t)key.len);
@@ -160,9 +160,9 @@ static PyObject* PyLevelDB_Delete(PyLevelDB* self, PyObject* args, PyObject* kwd
 {
 	PyObject* sync = Py_False;
 	Py_buffer key;
-	static char* kwargs[] = {"key", "sync", 0};
+	const char* kwargs[] = {"key", "sync", 0};
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, "s*|O!", kwargs, &key, &PyBool_Type, &sync))
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "s*|O!", (char**)kwargs, &key, &PyBool_Type, &sync))
 		return 0;
 
 	leveldb::Slice key_slice((const char*)key.buf, (size_t)key.len);
@@ -233,9 +233,9 @@ static PyObject* PyLevelDB_Write(PyLevelDB* self, PyObject* args, PyObject* kwds
 {
 	PyWriteBatch* write_batch = 0;
 	PyObject* sync = Py_False;
-	static char* kwargs[] = {"write_batch", "sync", 0};
+	const char* kwargs[] = {"write_batch", "sync", 0};
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, "O!|O!", kwargs, &PyWriteBatchType, &write_batch, &PyBool_Type, &sync))
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "O!|O!", (char**)kwargs, &PyWriteBatchType, &write_batch, &PyBool_Type, &sync))
 		return 0;
 
 	leveldb::WriteOptions options;
@@ -275,13 +275,13 @@ static PyObject* PyLevelDB_RangeIter(PyLevelDB* self, PyObject* args, PyObject* 
 	PyObject* verify_checksums = Py_False;
 	PyObject* fill_cache = Py_True;
 	PyObject* include_value = Py_True;
-	static char* kwargs[] = {"key_from", "key_to", "verify_checksums", "fill_cache", "include_value", 0};
+	const char* kwargs[] = {"key_from", "key_to", "verify_checksums", "fill_cache", "include_value", 0};
 
 	a.buf = b.buf = 0;
 	a.len = b.len = 0;
 	a.obj = b.obj = 0;
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, "|s*s*O!O!O!", kwargs, &a, &b, &PyBool_Type, &verify_checksums, &PyBool_Type, &fill_cache, &PyBool_Type, &include_value))
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "|s*s*O!O!O!", (char**)kwargs, &a, &b, &PyBool_Type, &verify_checksums, &PyBool_Type, &fill_cache, &PyBool_Type, &include_value))
 		return 0;
 
 	leveldb::ReadOptions options;
@@ -394,9 +394,9 @@ static int PyLevelDB_init(PyLevelDB* self, PyObject* args, PyObject* kwds)
 	int block_size = 4096;
 	int max_open_files = 1000;
 	int block_restart_interval = 16;
-	static char* kwargs[] = {"filename", "create_if_missing", "error_if_exists", "paranoid_checks", "write_buffer_size", "block_size", "max_open_files", "block_restart_interval", "block_cache_size", 0};
+	const char* kwargs[] = {"filename", "create_if_missing", "error_if_exists", "paranoid_checks", "write_buffer_size", "block_size", "max_open_files", "block_restart_interval", "block_cache_size", 0};
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, "s|O!O!O!iiiii", kwargs,
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "s|O!O!O!iiiii", (char**)kwargs,
 		&db_dir,
 		&PyBool_Type, &create_if_missing,
 		&PyBool_Type, &error_if_exists,
