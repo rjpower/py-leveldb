@@ -11,7 +11,7 @@ static PyMethodDef leveldb_methods[] =
 	{NULL, NULL},
 };
 
-PyMODINIT_FUNC
+extern "C" PyMODINIT_FUNC
 initleveldb(void)
 {
 	PyObject* leveldb_module = Py_InitModule3((char*)"leveldb", leveldb_methods, 0);

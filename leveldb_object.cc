@@ -804,6 +804,6 @@ static PyObject* LevelDBIter_new(PyLevelDB* db, leveldb::Iterator* iterator, std
 	iter->iterator = iterator;
 	iter->to = to;
 	iter->include_value = include_value;
-	_PyObject_GC_TRACK(iter);
+	PyObject_GC_Track(iter);
 	return (PyObject*)iter;
 }
