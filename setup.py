@@ -7,7 +7,7 @@ import sys
 from distutils.core import setup, Extension
 
 extra_compile_args = ['-I./leveldb-read-only/include', '-fPIC', '--std=c++0x', '-pedantic', '-Wall', '-g2', '-D_GNU_SOURCE', '-O2', '-DNDEBUG']
-extra_link_args = ['-Bdynamic', '-lm', '-L./leveldb-read-only', '-Bstatic', '-lleveldb']
+extra_link_args = ['-L./leveldb-read-only', '-Bstatic', '-lleveldb']
 
 setup(
 	name = 'leveldb',
