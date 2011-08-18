@@ -1,4 +1,4 @@
-py-leveldb: a thread-safe wrapper for leveldb (http://code.google.com/p/leveldb/)
+py-leveldb: Python bindings for leveldb (http://code.google.com/p/leveldb/)
 
 Copyright (C) 2011  Arni Mar Jonsson (arnimarj@gmail.com)
 

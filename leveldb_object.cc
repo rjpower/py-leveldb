@@ -607,7 +607,7 @@ PyTypeObject PyLevelDBType = {
 	0,                             /*tp_setattro*/
 	0,                             /*tp_as_buffer*/
 	Py_TPFLAGS_DEFAULT,            /*tp_flags*/
-	(char*)"PyLevelDB wrapper",    /*tp_doc */
+	(char*)"PyLevelDB bindings",   /*tp_doc */
 	0,                             /*tp_traverse */
 	0,                             /*tp_clear */
 	0,                             /*tp_richcompare */
@@ -762,7 +762,7 @@ static PyObject* LevelDBIter_next(LevelDBIter* iter)
 PyTypeObject PyLevelDBIter_Type = {
     PyObject_HEAD_INIT(NULL)
 	0,
-    (char*)"leveldb-keyiterator",    /* tp_name */
+    (char*)"leveldb-iterator",       /* tp_name */
     sizeof(LevelDBIter),             /* tp_basicsize */
     0,                               /* tp_itemsize */
     (destructor)LevelDBIter_dealloc, /* tp_dealloc */

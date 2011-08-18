@@ -1,4 +1,4 @@
-py-leveldb: a Python wrapper for LevelDB ()
+py-leveldb: Python bindings for LevelDB (http://code.google.com/p/leveldb/)
 author: Arni Mar Jonsson (arnimarj@gmail.com)
 
 Build Instructions
