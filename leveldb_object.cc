@@ -12,7 +12,7 @@ static void PyLevelDB_set_error(leveldb::Status& status)
 }
 
 const char leveldb_repair_db_doc[] =
-"leveldb.RepairDB(db_dir)\n"
+"leveldb.RepairDB(db_dir)\n\nAttempts to recover as much data as possible from a corrupdated database."
 ;
 PyObject* leveldb_repair_db(PyObject* self, PyObject* args)
 {
@@ -585,6 +585,78 @@ static int PyWriteBatch_init(PyWriteBatch* self, PyObject* args, PyObject* kwds)
 	return 0;
 }
 
+PyDoc_STRVAR(PyLevelDB_doc,
+"LevelDB(filename, **kwargs) -> leveldb object\n"
+"\n"
+"Open a LevelDB database, from the given directory.\n"
+"\n"
+"Only the parameter filename is mandatory.\n"
+"\n"
+"filename                                    the database directory\n"
+"create_if_missing (default: True)           if True, creates a new database if none exists\n"
+"error_if_exists   (default: False)          if True, raises and error if the database already exists\n"
+"paranoid_checks   (default: False)          if True, raises an error as soon as an internal corruption is detected\n" 
+"block_cache_size  (default: 8 * (2 << 20))  maximum allowed size for the block cache in bytes\n"
+"write_buffer_size (default  2 * (2 << 20))  \n"
+"block_size        (default: 4096)           unit of transfer for the block cache in bytes\n"
+"max_open_files:   (default: 1000)\n"
+"block_restart_interval           \n"
+"\n"
+"Snappy compression is used, if available.\n"
+"\n"
+"Some methods support the following parameters, having these semantics:\n"
+"\n"
+" verify_checksum: iff True, the operation will check for checksum mismatches\n"
+" fill_cache:      iff True, the operation will fill the cache with the data read\n"
+" sync:            iff True, the operation will be guaranteed to sync the operation to disk\n"
+"\n"
+"Methods supported are:\n"
+"\n"
+" Get(key, verify_checksums = False, fill_cache = True): get value, raises KeyError if key not found\n"
+"\n"
+"    key: the query key\n"
+"\n"
+" Put(key, value, sync = False): put key/value pair\n"
+"\n"
+"    key: the key\n"
+"    value: the value\n"
+"\n"
+" Delete(key, sync = False): delete key/value pair, raises no error kf key not found\n"
+"\n"
+"    key: the key\n"
+"\n"
+" Write(write_batch, sync = False): apply multiple put/delete operations atomatically\n"
+"\n"
+"    write_batch: the WriteBatch object holding the operations\n"
+"\n"
+" RangeIter(key_from = None, key_to = None, include_value = True, verify_checksums = False, fill_cache = True): return iterator\n"
+"\n"
+"    key_from: if not None: defines lower bound (inclusive) for iterator\n"
+"    key_to:   if not None: defined upper bound (inclusive) for iterator\n"
+"    include_value: if True, iterator returns key/value 2-tuples, otherwise, just keys\n"
+"\n"
+" GetStats(): get a string of runtime information\n"
+);
+
+PyDoc_STRVAR(PyWriteBatch_doc,
+"WriteBatch() -> write batch object\n"
+"\n"
+"Create an object, which can hold a list of database operations, which\n"
+"can be applied atomically.\n"
+"\n"
+"Methods supported are:\n"
+"\n"
+" Put(key, value): add put operation to batch\n"
+"\n"
+"    key: the key\n"
+"    value: the value\n"
+"\n"
+" Delete(key): add delete operation to batch\n"
+"\n"
+"    key: the key\n"
+);
+
+
 PyTypeObject PyLevelDBType = {
 	PyObject_HEAD_INIT(NULL)
 	0,                             /*ob_size*/
@@ -607,7 +679,7 @@ PyTypeObject PyLevelDBType = {
 	0,                             /*tp_setattro*/
 	0,                             /*tp_as_buffer*/
 	Py_TPFLAGS_DEFAULT,            /*tp_flags*/
-	(char*)"PyLevelDB bindings",   /*tp_doc */
+	(char*)PyLevelDB_doc,          /*tp_doc */
 	0,                             /*tp_traverse */
 	0,                             /*tp_clear */
 	0,                             /*tp_richcompare */
@@ -650,7 +722,7 @@ PyTypeObject PyWriteBatchType = {
 	0,                                /*tp_setattro*/
 	0,                                /*tp_as_buffer*/
 	Py_TPFLAGS_DEFAULT,               /*tp_flags*/
-	(char*)"PyWriteBatch",            /*tp_doc */
+	(char*)PyWriteBatch_doc,          /*tp_doc */
 	0,                                /*tp_traverse */
 	0,                                /*tp_clear */
 	0,                                /*tp_richcompare */
