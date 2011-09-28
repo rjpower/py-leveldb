@@ -4,14 +4,17 @@ author: Arni Mar Jonsson (arnimarj@gmail.com)
 Build Instructions
 ------------------
 
-First of all, you need to build the included leveldb library.
+First of all, you need to build the included leveldb library:
 
-$ ./
+$ ./compile_leveldb.sh
 
-Then, the extension itself
+Then, the extension itself:
 
 $ python setup.py build
 
+And, optionally, install it:
+
+$ sudo python setup.py install
 
 Example Usage
 -------------
