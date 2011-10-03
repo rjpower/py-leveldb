@@ -21,14 +21,55 @@ extern "C" {
 #include <vector>
 
 extern const char leveldb_repair_db_doc[];
+extern const char leveldb_destroy_db_doc[];
+
 PyObject* leveldb_repair_db(PyObject* o, PyObject* args);
+PyObject* leveldb_destroy_db(PyObject* o, PyObject* args);
 
 typedef struct {
 	PyObject_HEAD
+
+	// object is open if all of these are non-null,
+	// once an object has been closed, it can not be re-opened
 	leveldb::DB* _db;
 	leveldb::Options* _options;
 	leveldb::Cache* _cache;
+
+	// number of open snapshots, associated with LevelDB object
+	Py_ssize_t n_snapshots;
+
+	// number of open iterators, associated with LevelDB object
+	Py_ssize_t n_iterators;
 } PyLevelDB;
+
+typedef struct {
+	PyObject_HEAD
+
+	// the associated LevelDB object
+	PyLevelDB* db;
+
+	// the snapshot
+	const leveldb::Snapshot* snapshot;
+} PyLevelDBSnapshot;
+
+typedef struct {
+	PyObject_HEAD
+
+	// the associated LevelDB object or snapshot
+	PyObject* ref;
+
+	// the associated db object
+	PyLevelDB* db;
+
+	// the iterator
+	leveldb::Iterator* iterator;
+
+	// upper limit, inclusive, if any
+	std::string* to;
+
+	// if 1: return (k, v) 2-tuples, otherwise just k
+	int include_value;
+} PyLevelDBIter;
 
 typedef struct {
 	bool is_put;
@@ -42,10 +83,13 @@ typedef struct {
 } PyWriteBatch;
 
 // custom types
-extern PyTypeObject PyLevelDBType;
-extern PyTypeObject PyWriteBatchType;
+extern PyTypeObject PyLevelDB_Type;
+extern PyTypeObject PyLevelDBSnapshot_Type;
+extern PyTypeObject PyWriteBatch_Type;
 
-#define PyLevelDB_Check(op) PyObject_TypeCheck(op, &PyLevelDBType)
-#define PyWriteBatch_Check(op) PyObject_TypeCheck(op, &PyWriteBatchType)
+#define PyLevelDB_Check(op) PyObject_TypeCheck(op, &PyLevelDB_Type)
+#define PyLevelDBSnapshotCheck(op) PyObject_TypeCheck(op, &PyLevelDBSnapshot_Type)
+#define PyWriteBatch_Check(op) PyObject_TypeCheck(op, &PyWriteBatch_Type)
 
 #endif
+
