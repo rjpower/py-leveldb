@@ -387,7 +387,7 @@ static PyObject* PyWriteBatch_Delete(PyWriteBatch* self, PyObject* args)
 	return Py_None;
 }
 
-static int PyLevelDB_Write_(PyLevelDB* self, PyObject* args, PyObject* kwds, const leveldb::Snapshot** post_write_snapshot)
+static PyObject* PyLevelDB_Write(PyLevelDB* self, PyObject* args, PyObject* kwds)
 {
 	PyWriteBatch* write_batch = 0;
 	PyObject* sync = Py_False;
@@ -398,9 +398,6 @@ static int PyLevelDB_Write_(PyLevelDB* self, PyObject* args, PyObject* kwds, con
 
 	leveldb::WriteOptions options;
 	options.sync = (sync == Py_True) ? true : false;
-	if (post_write_snapshot)
-		options.post_write_snapshot = post_write_snapshot;
-
 	leveldb::WriteBatch batch;
 	leveldb::Status status;
 
@@ -425,26 +422,8 @@ static int PyLevelDB_Write_(PyLevelDB* self, PyObject* args, PyObject* kwds, con
 		return 0;
 	}
 
-	return 1;
-}
-
-static PyObject* PyLevelDB_Write(PyLevelDB* self, PyObject* args, PyObject* kwds)
-{
-	if (!PyLevelDB_Write_(self, args, kwds, 0))
-		return 0;
-
 	Py_INCREF(Py_None);
 	return Py_None;
-}
-
-static PyObject* PyLevelDB_WriteAsSnapshot(PyLevelDB* self, PyObject* args, PyObject* kwds)
-{
-	const leveldb::Snapshot* post_write_snapshot = 0;
-
-	if (!PyLevelDB_Write_(self, args, kwds, &post_write_snapshot))
-		return 0;
-
-	return PyLevelDBSnapshot_New(self, post_write_snapshot);
 }
 
 static PyObject* PyLevelDB_RangeIter_(PyObject* self, PyLevelDB* db, const leveldb::Snapshot* snapshot, PyObject* args, PyObject* kwds)
@@ -582,7 +561,6 @@ static PyMethodDef PyLevelDB_methods[] = {
 	{(char*)"Get",       (PyCFunction)PyLevelDB_Get,       METH_KEYWORDS, (char*)"get a value from the database" },
 	{(char*)"Delete",    (PyCFunction)PyLevelDB_Delete,    METH_KEYWORDS, (char*)"delete a value in the database" },
 	{(char*)"Write",     (PyCFunction)PyLevelDB_Write,     METH_KEYWORDS, (char*)"apply a write-batch"},
-	{(char*)"WriteAsSnapshot", (PyCFunction)PyLevelDB_WriteAsSnapshot,     METH_KEYWORDS, (char*)"apply a write-batch to a new snapshot, and return the snapshot"},
 	{(char*)"RangeIter", (PyCFunction)PyLevelDB_RangeIter, METH_KEYWORDS, (char*)"key/value range scan"},
 	{(char*)"GetStats",  (PyCFunction)PyLevelDB_GetStatus, METH_NOARGS,   (char*)"get a mapping of all DB statistics"},
 	{(char*)"CreateSnapshot", (PyCFunction)PyLevelDB_CreateSnapshot, METH_NOARGS, (char*)"create a new snapshot from current DB state"},
