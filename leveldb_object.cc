@@ -434,7 +434,7 @@ static PyObject* PyLevelDB_RangeIter_(PyObject* self, PyLevelDB* db, const level
 	PyObject* fill_cache = Py_True;
 	PyObject* include_value = Py_True;
 	PyObject* is_reverse = Py_False;
-	const char* kwargs[] = {"key_from", "key_to", "verify_checksums", "fill_cache", "include_value", "is_reverse", 0};
+	const char* kwargs[] = {"key_from", "key_to", "verify_checksums", "fill_cache", "include_value", "reverse", 0};
 
 	#ifdef PY_LEVELDB_BUFFER
 	a.buf = b.buf = 0;
@@ -497,37 +497,26 @@ static PyObject* PyLevelDB_RangeIter_(PyObject* self, PyLevelDB* db, const level
 	if (iter) {
 		// forward iteration
 		if (is_reverse == Py_False) {
-			printf("forward\n");
 
 			if (!is_from)
 				iter->SeekToFirst();
 			else
 				iter->Seek(key);
 		} else {
-			printf("rev\n");
 
 			if (!is_to) {
-				printf(" A\n");
 				iter->SeekToLast();
-				printf(" AA\n");
 			} else {
-				printf(" B\n");
 				iter->Seek(key);
 
 				if (!iter->Valid()) {
-					printf(" D\n");
-					delete iter;
-					iter = db->_db->NewIterator(read_options);
-					if (iter)
-						iter->SeekToLast();
+					iter->SeekToLast();
 				} else {
-					printf(" C\n");
 					leveldb::Slice a = key;
 					leveldb::Slice b = iter->key();
 					int c = db->_options->comparator->Compare(a, b);
 
 					if (c) {
-						printf(" prev()\n");
 						iter->Prev();
 					}
 				}
@@ -1001,14 +990,10 @@ static PyObject* PyLevelDBIter_next(PyLevelDBIter* iter)
 		leveldb::Slice b = iter->iterator->key();
 		int c = iter->db->_options->comparator->Compare(a, b);
 
-		printf("C: %i\n", c);
-
 		if (!iter->is_reverse && !(0 <= c)) {
-			printf(" out A\n");
 			PyLevelDBIter_clean(iter);
 			return 0;
 		} else if (iter->is_reverse && !(0 >= c)) {
-			printf(" out B\n");
 			PyLevelDBIter_clean(iter);
 			return 0;
 		}
@@ -1047,10 +1032,8 @@ static PyObject* PyLevelDBIter_next(PyLevelDBIter* iter)
 
 	// get next/prev value
 	if (iter->is_reverse) {
-		printf("Prev()\n");
 		iter->iterator->Prev();
 	} else {
-		printf("Next()\n");
 		iter->iterator->Next();
 	}
 	// return k/v pair or single key
