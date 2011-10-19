@@ -3,7 +3,7 @@
 
 #include "leveldb_ext.h"
 
-static PyObject* PyLevelDBIter_New(PyObject* ref, PyLevelDB* db, leveldb::Iterator* iterator, std::string* to, int include_value);
+static PyObject* PyLevelDBIter_New(PyObject* ref, PyLevelDB* db, leveldb::Iterator* iterator, std::string* bound, int include_value, int is_reverse);
 static PyObject* PyLevelDBSnapshot_New(PyLevelDB* db, const leveldb::Snapshot* snapshot);
 
 static void PyLevelDB_set_error(leveldb::Status& status)
@@ -433,7 +433,8 @@ static PyObject* PyLevelDB_RangeIter_(PyObject* self, PyLevelDB* db, const level
 	PyObject* verify_checksums = Py_False;
 	PyObject* fill_cache = Py_True;
 	PyObject* include_value = Py_True;
-	const char* kwargs[] = {"key_from", "key_to", "verify_checksums", "fill_cache", "include_value", 0};
+	PyObject* is_reverse = Py_False;
+	const char* kwargs[] = {"key_from", "key_to", "verify_checksums", "fill_cache", "include_value", "is_reverse", 0};
 
 	#ifdef PY_LEVELDB_BUFFER
 	a.buf = b.buf = 0;
@@ -442,11 +443,11 @@ static PyObject* PyLevelDB_RangeIter_(PyObject* self, PyLevelDB* db, const level
 	#endif
 
 	#if defined PY_LEVELDB_BUFFER_3
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, (char*)"|f*f*O!O!O!", (char**)kwargs, &a, &b, &PyBool_Type, &verify_checksums, &PyBool_Type, &fill_cache, &PyBool_Type, &include_value))
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, (char*)"|f*f*O!O!O!O!", (char**)kwargs, &a, &b, &PyBool_Type, &verify_checksums, &PyBool_Type, &fill_cache, &PyBool_Type, &include_value, &PyBool_Type, &is_reverse))
 	#elif defined PY_LEVELDB_BUFFER_26
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, (char*)"|s*s*O!O!O!", (char**)kwargs, &a, &b, &PyBool_Type, &verify_checksums, &PyBool_Type, &fill_cache, &PyBool_Type, &include_value))
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, (char*)"|s*s*O!O!O!O!", (char**)kwargs, &a, &b, &PyBool_Type, &verify_checksums, &PyBool_Type, &fill_cache, &PyBool_Type, &include_value, &PyBool_Type, &is_reverse))
 	#else
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, (char*)"|t#t#O!O!O!", (char**)kwargs, &s_a, &n_a, &s_b, &n_b, &PyBool_Type, &verify_checksums, &PyBool_Type, &fill_cache, &PyBool_Type, &include_value))
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, (char*)"|t#t#O!O!O!O!", (char**)kwargs, &s_a, &n_a, &s_b, &n_b, &PyBool_Type, &verify_checksums, &PyBool_Type, &fill_cache, &PyBool_Type, &include_value, &PyBool_Type, &is_reverse))
 	#endif
 		return 0;
 
@@ -480,7 +481,7 @@ static PyObject* PyLevelDB_RangeIter_(PyObject* self, PyLevelDB* db, const level
 
 	#endif
 
-	leveldb::Slice key(from.c_str(), from.size());
+	leveldb::Slice key(is_reverse == Py_True ? to.c_str() : from.c_str(), is_reverse == Py_True ? to.size() : from.size());
 
 	PY_LEVELDB_RELEASE_BUFFER(a);
 	PY_LEVELDB_RELEASE_BUFFER(b);
@@ -494,11 +495,44 @@ static PyObject* PyLevelDB_RangeIter_(PyObject* self, PyLevelDB* db, const level
 
 	// if we have an iterator
 	if (iter) {
-		// position iterator
-		if (!is_from)
-			iter->SeekToFirst();
-		else
-			iter->Seek(key);
+		// forward iteration
+		if (is_reverse == Py_False) {
+			printf("forward\n");
+
+			if (!is_from)
+				iter->SeekToFirst();
+			else
+				iter->Seek(key);
+		} else {
+			printf("rev\n");
+
+			if (!is_to) {
+				printf(" A\n");
+				iter->SeekToLast();
+				printf(" AA\n");
+			} else {
+				printf(" B\n");
+				iter->Seek(key);
+
+				if (!iter->Valid()) {
+					printf(" D\n");
+					delete iter;
+					iter = db->_db->NewIterator(read_options);
+					if (iter)
+						iter->SeekToLast();
+				} else {
+					printf(" C\n");
+					leveldb::Slice a = key;
+					leveldb::Slice b = iter->key();
+					int c = db->_options->comparator->Compare(a, b);
+
+					if (c) {
+						printf(" prev()\n");
+						iter->Prev();
+					}
+				}
+			}
+		}
 	}
 
 	Py_END_ALLOW_THREADS
@@ -509,14 +543,21 @@ static PyObject* PyLevelDB_RangeIter_(PyObject* self, PyLevelDB* db, const level
 	// if iterator is empty, return an empty iterator object
 	if (!iter->Valid()) {
 		delete iter;
-		return PyLevelDBIter_New(0, 0, 0, 0, 0);
+		return PyLevelDBIter_New(0, 0, 0, 0, 0, 0);
 	}
 
 	// otherwise, we're good
 	std::string* s = 0;
 
-	if (is_to) {
+	if (is_reverse == Py_False && is_to) {
 		s = new std::string(to);
+
+		if (s == 0) {
+			delete iter;
+			return PyErr_NoMemory();
+		}
+	} else if (is_reverse == Py_True && is_from) {
+		s = new std::string(from);
 
 		if (s == 0) {
 			delete iter;
@@ -524,7 +565,7 @@ static PyObject* PyLevelDB_RangeIter_(PyObject* self, PyLevelDB* db, const level
 		}
 	}
 
-	return PyLevelDBIter_New(self, db, iter, s, (include_value == Py_True) ? 1 : 0);
+	return PyLevelDBIter_New(self, db, iter, s, (include_value == Py_True) ? 1 : 0, (is_reverse == Py_True) ? 1 : 0);
 }
 
 static PyObject* PyLevelDB_RangeIter(PyLevelDB* self, PyObject* args, PyObject* kwds)
@@ -923,13 +964,14 @@ static void PyLevelDBIter_clean(PyLevelDBIter* iter)
 {
 	if (iter->db)
 		iter->db->n_iterators -= 1;
+
 	Py_XDECREF(iter->ref);
 	delete iter->iterator;
-	delete iter->to;
+	delete iter->bound;
 	iter->ref = 0;
 	iter->db = 0;
 	iter->iterator = 0;
-	iter->to = 0;
+	iter->bound = 0;
 	iter->include_value = 0;
 }
 
@@ -953,13 +995,20 @@ static PyObject* PyLevelDBIter_next(PyLevelDBIter* iter)
 		return 0;
 	}
 
-	// if we have an upper bound, and we have run past it, clean up and return
-	if (iter->to) {
-		leveldb::Slice a = leveldb::Slice(iter->to->c_str(), iter->to->size());
+	// if we have an upper/lower bound, and we have run past it, clean up and return
+	if (iter->bound) {
+		leveldb::Slice a = leveldb::Slice(iter->bound->c_str(), iter->bound->size());
 		leveldb::Slice b = iter->iterator->key();
 		int c = iter->db->_options->comparator->Compare(a, b);
 
-		if (!(0 <= c)) {
+		printf("C: %i\n", c);
+
+		if (!iter->is_reverse && !(0 <= c)) {
+			printf(" out A\n");
+			PyLevelDBIter_clean(iter);
+			return 0;
+		} else if (iter->is_reverse && !(0 >= c)) {
+			printf(" out B\n");
 			PyLevelDBIter_clean(iter);
 			return 0;
 		}
@@ -996,9 +1045,14 @@ static PyObject* PyLevelDBIter_next(PyLevelDBIter* iter)
 		PyTuple_SET_ITEM(ret, 1, value);
 	}
 
-	// get next value
-	iter->iterator->Next();
-
+	// get next/prev value
+	if (iter->is_reverse) {
+		printf("Prev()\n");
+		iter->iterator->Prev();
+	} else {
+		printf("Next()\n");
+		iter->iterator->Next();
+	}
 	// return k/v pair or single key
 	return ret;
 }
@@ -1036,7 +1090,7 @@ PyTypeObject PyLevelDBIter_Type = {
 	0,
 };
 
-static PyObject* PyLevelDBIter_New(PyObject* ref, PyLevelDB* db, leveldb::Iterator* iterator, std::string* to, int include_value)
+static PyObject* PyLevelDBIter_New(PyObject* ref, PyLevelDB* db, leveldb::Iterator* iterator, std::string* bound, int include_value, int is_reverse)
 {
 	PyLevelDBIter* iter = PyObject_GC_New(PyLevelDBIter, &PyLevelDBIter_Type);
 
@@ -1049,7 +1103,8 @@ static PyObject* PyLevelDBIter_New(PyObject* ref, PyLevelDB* db, leveldb::Iterat
 	iter->ref = ref;
 	iter->db = db;
 	iter->iterator = iterator;
-	iter->to = to;
+	iter->is_reverse = is_reverse;
+	iter->bound = bound;
 	iter->include_value = include_value;
 
 	if (iter->db)
@@ -1075,4 +1130,3 @@ static PyObject* PyLevelDBSnapshot_New(PyLevelDB* db, const leveldb::Snapshot* s
 	PyObject_GC_Track(s);
 	return (PyObject*)s;
 }
-

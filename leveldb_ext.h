@@ -64,8 +64,11 @@ typedef struct {
 	// the iterator
 	leveldb::Iterator* iterator;
 
-	// upper limit, inclusive, if any
-	std::string* to;
+	// upper/lower limit, inclusive, if any
+	std::string* bound;
+
+	// iterator direction
+	int is_reverse;
 
 	// if 1: return (k, v) 2-tuples, otherwise just k
 	int include_value;

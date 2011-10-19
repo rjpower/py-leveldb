@@ -80,19 +80,19 @@ class TestLevelDB(unittest.TestCase):
 		self.assertEquals(db.Get('foo'), 'v4')
 
 	def ClearDB(self, db):
-		for k in list(db.RangeIter(include_value = False)):
+		for k in list(db.RangeIter(include_value = False, is_reverse = True)):
 			db.Delete(k)
 
 	def ClearDB_batch(self, db):
 		b = self.leveldb.WriteBatch()
 
-		for k in db.RangeIter(include_value = False):
+		for k in db.RangeIter(include_value = False, is_reverse = True):
 			b.Delete(k)
 
 		db.Write(b)
 
 	def CountDB(self, db):
-		return sum(1 for i in db.RangeIter())
+		return sum(1 for i in db.RangeIter(is_reverse = True))
 
 	def _insert_lowercase(self, db):
 		b = self.leveldb.WriteBatch()
@@ -126,6 +126,34 @@ class TestLevelDB(unittest.TestCase):
 		s = ''.join(k for k, v in db.RangeIter(key_to = 'E'))
 		self.assertEquals(s, 'ABCDE')
 
+	def _test_uppercase_iter_rev(self, db):
+		# inside range
+		s = ''.join(k for k, v in db.RangeIter('J', 'M', is_reverse = True))
+		self.assertEquals(s, 'MLKJ')
+
+		# partly outside range
+		print 'X'
+		s = ''.join(k for k, v in db.RangeIter('Z', chr(ord('Z') + 1), is_reverse = True))
+		self.assertEquals(s, 'Z')
+		print 'Y'
+		s = ''.join(k for k, v in db.RangeIter(chr(ord('A') - 1), 'A', is_reverse = True))
+		self.assertEquals(s, 'A')
+
+		# wholly outside range
+		s = ''.join(k for k, v in db.RangeIter(chr(ord('Z') + 1), chr(ord('Z') + 2), is_reverse = True))
+		self.assertEquals(s, '')
+
+		s = ''.join(k for k, v in db.RangeIter(chr(ord('A') - 2), chr(ord('A') - 1), is_reverse = True))
+		self.assertEquals(s, '')
+
+		# lower limit
+		s = ''.join(k for k, v in db.RangeIter('S', is_reverse = True))
+		self.assertEquals(s, 'ZYXWVUTS')
+
+		# upper limit
+		s = ''.join(k for k, v in db.RangeIter(key_to = 'E', is_reverse = True))
+		self.assertEquals(s, 'EDCBA')
+
 	def _test_lowercase_iter(self, db):
 		s = ''.join(k for k, v in db.RangeIter('j', 'm'))
 		self.assertEquals(s, 'jklm')
@@ -135,6 +163,16 @@ class TestLevelDB(unittest.TestCase):
 
 		s = ''.join(k for k, v in db.RangeIter(key_to = 'e'))
 		self.assertEquals(s, 'abcde')
+
+	def _test_lowercase_iter(self, db):
+		s = ''.join(k for k, v in db.RangeIter('j', 'm', is_reverse = True))
+		self.assertEquals(s, 'mlkj')
+
+		s = ''.join(k for k, v in db.RangeIter('s', is_reverse = True))
+		self.assertEquals(s, 'zyxwvuts')
+
+		s = ''.join(k for k, v in db.RangeIter(key_to = 'e', is_reverse = True))
+		self.assertEquals(s, 'edcba')
 
 	def _test_lowercase_get(self, db):
 		for k in string.lowercase:
@@ -147,10 +185,12 @@ class TestLevelDB(unittest.TestCase):
 		self._insert_lowercase(db)
 		self.assertEquals(self.CountDB(db), 26)
 		self._test_lowercase_iter(db)
+		self._test_lowercase_iter_rev(db)
 		self._test_lowercase_get(db)
 		self.ClearDB_batch(db)
 		self._insert_uppercase_batch(db)
 		self._test_uppercase_iter(db)
+		self._test_uppercase_iter_rev(db)
 		self._test_uppercase_get(db)
 		self.assertEquals(self.CountDB(db), 26)
 
