@@ -6,7 +6,7 @@
 import sys
 from distutils.core import setup, Extension
 
-extra_compile_args = ['-I./leveldb-read-only/include', '-fPIC', '-pedantic', '-Wall', '-g2', '-D_GNU_SOURCE', '-O2', '-DNDEBUG']
+extra_compile_args = ['-I./leveldb-read-only/include', '-fPIC', '-Wall', '-g2', '-D_GNU_SOURCE', '-O2', '-DNDEBUG']
 extra_link_args = ['-L./leveldb-read-only', '-Bstatic', '-lleveldb', '-L./snappy-read-only/.libs/', '-Bstatic', '-lsnappy']
 
 setup(
