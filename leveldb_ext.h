@@ -36,10 +36,10 @@ typedef struct {
 	leveldb::Cache* _cache;
 
 	// number of open snapshots, associated with LevelDB object
-	Py_ssize_t n_snapshots;
+	int n_snapshots;
 
 	// number of open iterators, associated with LevelDB object
-	Py_ssize_t n_iterators;
+	int n_iterators;
 } PyLevelDB;
 
 typedef struct {
