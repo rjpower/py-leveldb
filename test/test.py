@@ -24,8 +24,8 @@ class TestLevelDB(unittest.TestCase):
 		self.name = 'db_a'
 		self.leveldb.DestroyDB(self.name)
 
-	def _open(self, create_if_missing = True, error_if_exists = False):
-		options = {
+	def _open_options(self, create_if_missing = True, error_if_exists = False):
+		return {
 			'create_if_missing': True,
 			'error_if_exists': error_if_exists,
 			'paranoid_checks': False,
@@ -36,7 +36,16 @@ class TestLevelDB(unittest.TestCase):
 			'block_restart_interval': 16
 		}
 
+	def _open(self, *args, **kwargs):
+		options = self._open_options(*args, **kwargs)
 		return self.leveldb.LevelDB(self.name, **options)
+
+	def testIteratorCrash(self):
+		options = self._open_options()
+		db = self.leveldb.LevelDB(self.name, **options)
+		db.Put('a', 'b')
+		i = db.RangeIter(include_value = False, reverse = True)
+		#del self.leveldb
 
 	# NOTE: modeled after test 'Snapshot'
 	def testSnapshotBasic(self):

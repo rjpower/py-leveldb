@@ -954,9 +954,11 @@ static void PyLevelDBIter_clean(PyLevelDBIter* iter)
 	if (iter->db)
 		iter->db->n_iterators -= 1;
 
-	Py_XDECREF(iter->ref);
 	delete iter->iterator;
 	delete iter->bound;
+
+	Py_XDECREF(iter->ref);
+
 	iter->ref = 0;
 	iter->db = 0;
 	iter->iterator = 0;
