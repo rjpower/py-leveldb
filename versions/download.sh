@@ -1,22 +1,48 @@
-#!/bin/sh
+#!/bin/bash
 
-# see http://python.org/download/releases/
+set -e
 
-wget -qc http://python.org/ftp/python/3.2.1/Python-3.2.1.tar.bz2
-wget -qc http://python.org/ftp/python/3.1.4/Python-3.1.4.tar.bz2
-wget -qc http://python.org/ftp/python/3.0.1/Python-3.0.1.tar.bz2
-wget -qc http://python.org/ftp/python/2.7.2/Python-2.7.2.tar.bz2
-wget -qc http://python.org/ftp/python/2.6.7/Python-2.6.7.tar.bz2
-wget -qc http://python.org/ftp/python/2.5.6/Python-2.5.6.tar.bz2
-wget -qc http://python.org/ftp/python/2.4.6/Python-2.4.6.tar.bz2
+# sudo apt-get install zlib1g-dev
 
-#for i in `ls | grep bz2$`; do bzip2 -dc $i | tar -x; done
-
-for i in `find -maxdepth 1 -type d | grep ^./P | grep -v build | sort | grep 2.5`; do
 (
-	echo $i;
-	cd $i;
-#	./configure --prefix=`pwd`-build;
-	make && make install;
+	mkdir -p download;
+	cd download;
+
+	# see http://python.org/download/releases/
+
+#	wget -qc http://python.org/ftp/python/3.2.3/Python-3.2.3.tar.bz2;
+#	wget -qc http://python.org/ftp/python/3.1.5/Python-3.1.5.tar.bz2;
+#	wget -qc http://python.org/ftp/python/3.0.1/Python-3.0.1.tar.bz2;
+#	wget -qc http://python.org/ftp/python/2.7.3/Python-2.7.3.tar.bz2;
+#	wget -qc http://python.org/ftp/python/2.6.8/Python-2.6.8.tar.bz2;
+#	wget -qc http://python.org/ftp/python/2.5.6/Python-2.5.6.tar.bz2;
+#	wget -qc http://python.org/ftp/python/2.4.6/Python-2.4.6.tar.bz2;
+
+	# decompress
+#	for i in `ls | grep bz2$`; do bzip2 -dc $i | tar -x; done
+
+#	# apply patches
+#	for i in `find -maxdepth 1 -type d | grep ^./P | grep -v build | grep -v env | sort`; do
+#	(
+#		cd $i;
+#		patch -s < ../../setup.py.patch;
+#	) done
+
+	# build
+	for i in `find -maxdepth 1 -type d | grep ^./P | grep -v build | grep -v env | sort`; do
+	(
+		cd $i;
+		pwd;
+		CXX=g++ ./configure --disable-option-checking --enable-unicode=ucs4 --with-wide-unicode --prefix=`pwd`-build > /dev/null;
+		make         > /dev/null;
+		make install > /dev/null;
+	) done
+
+#	# virtualenv
+#	for i in `find -maxdepth 1 -type d | grep ^./P | grep -v build | grep -v env | sort`; do
+#	(
+#		echo $i;
+#		virtualenv -p $i-build/bin/python $i-env;
+#	) done
+
 )
-done

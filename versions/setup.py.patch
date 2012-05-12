@@ -1,0 +1,10 @@
+--- setup.py	2006-10-08 17:41:25.000000000 +0000
++++ setup.py.new	2012-05-12 21:01:30.975090063 +0000
+@@ -269,6 +269,7 @@
+         lib_dirs = self.compiler.library_dirs + [
+             '/lib64', '/usr/lib64',
+             '/lib', '/usr/lib',
++            '/usr/lib/x86_64-linux-gnu/'
+             ]
+         inc_dirs = self.compiler.include_dirs + ['/usr/include']
+         exts = []
