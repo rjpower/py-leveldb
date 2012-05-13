@@ -6,8 +6,8 @@
 import sys
 from distutils.core import setup, Extension
 
-extra_compile_args = ['-I./leveldb-read-only/include', '-fPIC', '-Wall', '-g2', '-D_GNU_SOURCE', '-O2', '-DNDEBUG']
-extra_link_args = ['-L./leveldb-read-only', '-Bstatic', '-lleveldb', '-L./snappy-read-only/.libs/', '-Bstatic', '-lsnappy']
+extra_compile_args = ['-I./leveldb/include', '-fPIC', '-Wall', '-g2', '-D_GNU_SOURCE', '-O2', '-DNDEBUG']
+extra_link_args = ['-L./leveldb', '-Bstatic', '-lleveldb', '-L./snappy-read-only/.libs/', '-Bstatic', '-lsnappy']
 
 setup(
 	name = 'leveldb',
@@ -28,6 +28,9 @@ setup(
 		'Programming Language :: Python :: 2.5',
 		'Programming Language :: Python :: 2.6',
 		'Programming Language :: Python :: 2.7',
+		'Programming Language :: Python :: 3.0',
+		'Programming Language :: Python :: 3.1',
+		'Programming Language :: Python :: 3.2',
 		'Topic :: Database',
 		'Topic :: Software Development :: Libraries'
 	],

@@ -11,14 +11,8 @@ from twisted.trial import unittest
 class TestLevelDB(unittest.TestCase):
 	def setUp(self):
 		# import local leveldb
-		p = sys.path
-
-		try:
-			sys.path = ['/home/arni/code/py-leveldb/build/lib.linux-x86_64-2.7']
-			import leveldb as _leveldb
-			self.leveldb = _leveldb
-		finally:
-			sys.path = p
+		import leveldb as _leveldb
+		self.leveldb = _leveldb
 
 		# destroy previous database, if any
 		self.name = 'db_a'
