@@ -150,12 +150,12 @@ static PyObject* PyLevelDBSnapshot_new(PyTypeObject* type, PyObject* args, PyObj
 	return (PyObject*)self;
 }
 
-#if PYTHON_MAJOR_VERSION >= 3
+#if PY_MAJOR_VERSION >= 3
 #define PY_LEVELDB_BUFFER_3
 #define PY_LEVELDB_BUFFER
 #define PY_LEVELDB_DEFINE_BUFFER(n) Py_buffer n
 #define PY_LEVELDB_RELEASE_BUFFER(n) if (n.obj) {PyBuffer_Release(&n);}
-#elif PYTHON_MAJOR_VERSION >= 2 && PYTHON_MINOR_VERSION >= 6
+#elif PY_MAJOR_VERSION >= 2 && PY_MINOR_VERSION >= 6
 #define PY_LEVELDB_BUFFER_26
 #define PY_LEVELDB_BUFFER
 #define PY_LEVELDB_DEFINE_BUFFER(n) Py_buffer n
@@ -467,7 +467,7 @@ static PyObject* PyLevelDB_RangeIter_(PyObject* self, PyLevelDB* db, const level
 		from = std::string((const char*)a.buf, (size_t)a.len);
 
 	if (is_to)
-		std::string to = std::string((const char*)b.buf, (size_t)b.len);
+		to = std::string((const char*)b.buf, (size_t)b.len);
 
 	#else
 	int is_from = (s_a != 0);
