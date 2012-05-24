@@ -192,13 +192,14 @@ static PyObject* PyLevelDB_Put(PyLevelDB* self, PyObject* args, PyObject* kwds)
 	#else
 	leveldb::Slice key_slice((const char*)s_key, (size_t)n_key);
 	leveldb::Slice value_slice((const char*)s_value, (size_t)n_value);
-	Py_BEGIN_ALLOW_THREADS
 	#endif
 
 	options.sync = (sync == Py_True) ? true : false;
 	status = self->_db->Put(options, key_slice, value_slice);
 
+	#ifdef PY_LEVELDB_BUFFER
 	Py_END_ALLOW_THREADS
+	#endif
 
 	PY_LEVELDB_RELEASE_BUFFER(key);
 	PY_LEVELDB_RELEASE_BUFFER(value);
@@ -237,7 +238,6 @@ static PyObject* PyLevelDB_Get_(leveldb::DB* db, const leveldb::Snapshot* snapsh
 	leveldb::Slice key_slice((const char*)key.buf, (size_t)key.len);
 	#else
 	leveldb::Slice key_slice((const char*)s_key, (size_t)n_key);
-	Py_BEGIN_ALLOW_THREADS
 	#endif
 
 	leveldb::ReadOptions options;;
@@ -247,7 +247,9 @@ static PyObject* PyLevelDB_Get_(leveldb::DB* db, const leveldb::Snapshot* snapsh
 
 	status = db->Get(options, key_slice, &value);
 
+	#ifdef PY_LEVELDB_BUFFER
 	Py_END_ALLOW_THREADS
+	#endif
 
 	PY_LEVELDB_RELEASE_BUFFER(key);
 
@@ -297,14 +299,16 @@ static PyObject* PyLevelDB_Delete(PyLevelDB* self, PyObject* args, PyObject* kwd
 	leveldb::Slice key_slice((const char*)key.buf, (size_t)key.len);
 	#else
 	leveldb::Slice key_slice((const char*)s_key, (size_t)n_key);
-	Py_BEGIN_ALLOW_THREADS
 	#endif
 
 	leveldb::WriteOptions options;
 	options.sync = (sync == Py_True) ? true : false;
 
 	status = self->_db->Delete(options, key_slice);
+
+	#ifdef PY_LEVELDB_BUFFER
 	Py_END_ALLOW_THREADS
+	#endif
 
 	PY_LEVELDB_RELEASE_BUFFER(key);
 
