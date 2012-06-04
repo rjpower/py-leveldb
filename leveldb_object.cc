@@ -8,14 +8,14 @@ static PyObject* PyLevelDBSnapshot_New(PyLevelDB* db, const leveldb::Snapshot* s
 
 static void PyLevelDB_set_error(leveldb::Status& status)
 {
-	extern PyObject* leveldb_exception;
+	//struct leveldb_extension_state* st = GETSTATE((PyObject*)m);
 	PyErr_SetString(leveldb_exception, status.ToString().c_str());
 }
 
 const char leveldb_repair_db_doc[] =
 "leveldb.RepairDB(db_dir)\n\nAttempts to recover as much data as possible from a corrupt database."
 ;
-PyObject* leveldb_repair_db(PyObject* self, PyObject* args)
+PyObject* leveldb_repair_db(PyLevelDB* self, PyObject* args)
 {
 	const char* db_dir = 0;
 
@@ -80,7 +80,11 @@ static void PyLevelDB_dealloc(PyLevelDB* self)
 	self->n_iterators = 0;
 	self->n_snapshots = 0;
 
-	self->ob_type->tp_free(self);
+	#if PY_MAJOR_VERSION >= 3
+	Py_TYPE(self)->tp_free((PyObject*)self);
+	#else
+	((PyObject*)self)->ob_type->tp_free((PyObject*)self);
+	#endif
 }
 
 static void PyLevelDBSnapshot_dealloc(PyLevelDBSnapshot* self)
@@ -98,13 +102,22 @@ static void PyLevelDBSnapshot_dealloc(PyLevelDBSnapshot* self)
 	self->db = 0;
 	self->snapshot = 0;
 
-	self->ob_type->tp_free(self);
+	#if PY_MAJOR_VERSION >= 3
+	Py_TYPE(self)->tp_free((PyObject*)self);
+	#else
+	((PyObject*)self)->ob_type->tp_free((PyObject*)self);
+	#endif
 }
 
 static void PyWriteBatch_dealloc(PyWriteBatch* self)
 {
 	delete self->ops;
-	self->ob_type->tp_free(self);
+
+	#if PY_MAJOR_VERSION >= 3
+	Py_TYPE(self)->tp_free((PyObject*)self);
+	#else
+	((PyObject*)self)->ob_type->tp_free((PyObject*)self);
+	#endif
 }
 
 static PyObject* PyLevelDB_new(PyTypeObject* type, PyObject* args, PyObject* kwds)
@@ -130,7 +143,11 @@ static PyObject* PyWriteBatch_new(PyTypeObject* type, PyObject* args, PyObject* 
 		self->ops = new std::vector<PyWriteBatchEntry>;
 
 		if (self->ops == 0) {
-			self->ob_type->tp_free(self);
+			#if PY_MAJOR_VERSION >= 3
+			Py_TYPE(self)->tp_free((PyObject*)self);
+			#else
+			((PyObject*)self)->ob_type->tp_free((PyObject*)self);
+			#endif
 			return PyErr_NoMemory();
 		}
 	}
@@ -177,7 +194,7 @@ static PyObject* PyLevelDB_Put(PyLevelDB* self, PyObject* args, PyObject* kwds)
 	leveldb::Status status;
 
 	#if defined PY_LEVELDB_BUFFER_3
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, (char*)"f*f*|O!", (char**)kwargs, &key, &value, &PyBool_Type, &sync))
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, (char*)"y*y*|O!", (char**)kwargs, &key, &value, &PyBool_Type, &sync))
 	#elif defined PY_LEVELDB_BUFFER_26
 	if (!PyArg_ParseTupleAndKeywords(args, kwds, (char*)"s*s*|O!", (char**)kwargs, &key, &value, &PyBool_Type, &sync))
 	#else
@@ -213,7 +230,7 @@ static PyObject* PyLevelDB_Put(PyLevelDB* self, PyObject* args, PyObject* kwds)
 	return Py_None;
 }
 
-static PyObject* PyLevelDB_Get_(leveldb::DB* db, const leveldb::Snapshot* snapshot, PyObject* args, PyObject* kwds)
+static PyObject* PyLevelDB_Get_(PyLevelDB* self, leveldb::DB* db, const leveldb::Snapshot* snapshot, PyObject* args, PyObject* kwds)
 {
 	PyObject* verify_checksums = Py_False;
 	PyObject* fill_cache = Py_True;
@@ -225,7 +242,7 @@ static PyObject* PyLevelDB_Get_(leveldb::DB* db, const leveldb::Snapshot* snapsh
 	PY_LEVELDB_DEFINE_BUFFER(key);
 
 	#if defined PY_LEVELDB_BUFFER_3
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, (char*)"f*|O!O!", (char**)kwargs, &key, &PyBool_Type, &verify_checksums, &PyBool_Type, &fill_cache))
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, (char*)"y*|O!O!", (char**)kwargs, &key, &PyBool_Type, &verify_checksums, &PyBool_Type, &fill_cache))
 	#elif defined PY_LEVELDB_BUFFER_26
 	if (!PyArg_ParseTupleAndKeywords(args, kwds, (char*)"s*|O!O!", (char**)kwargs, &key, &PyBool_Type, &verify_checksums, &PyBool_Type, &fill_cache))
 	#else
@@ -263,17 +280,21 @@ static PyObject* PyLevelDB_Get_(leveldb::DB* db, const leveldb::Snapshot* snapsh
 		return 0;
 	}
 
+	#if PY_MAJOR_VERSION >= 3
+	return PyByteArray_FromStringAndSize(value.c_str(), value.length());
+	#else
 	return PyString_FromStringAndSize(value.c_str(), value.length());
+	#endif
 }
 
 static PyObject* PyLevelDB_Get(PyLevelDB* self, PyObject* args, PyObject* kwds)
 {
-	return PyLevelDB_Get_(self->_db, 0, args, kwds);
+	return PyLevelDB_Get_(self, self->_db, 0, args, kwds);
 }
 
 static PyObject* PyLevelDBSnaphot_Get(PyLevelDBSnapshot* self, PyObject* args, PyObject* kwds)
 {
-	return PyLevelDB_Get_(self->db->_db, self->snapshot, args, kwds);
+	return PyLevelDB_Get_(self->db, self->db->_db, self->snapshot, args, kwds);
 }
 
 static PyObject* PyLevelDB_Delete(PyLevelDB* self, PyObject* args, PyObject* kwds)
@@ -286,7 +307,7 @@ static PyObject* PyLevelDB_Delete(PyLevelDB* self, PyObject* args, PyObject* kwd
 	leveldb::Status status;
 
 	#if defined PY_LEVELDB_BUFFER_3
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, (char*)"f*|O!", (char**)kwargs, &key, &PyBool_Type, &sync))
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, (char*)"y*|O!", (char**)kwargs, &key, &PyBool_Type, &sync))
 	#elif defined PY_LEVELDB_BUFFER_26
 	if (!PyArg_ParseTupleAndKeywords(args, kwds, (char*)"s*|O!", (char**)kwargs, &key, &PyBool_Type, &sync))
 	#else
@@ -328,7 +349,7 @@ static PyObject* PyWriteBatch_Put(PyWriteBatch* self, PyObject* args)
 	PY_LEVELDB_DEFINE_BUFFER(value);
 
 	#if defined PY_LEVELDB_BUFFER_3
-	if (!PyArg_ParseTuple(args, (char*)"f*f*", &key, &value))
+	if (!PyArg_ParseTuple(args, (char*)"y*y*", &key, &value))
 	#elif defined PY_LEVELDB_BUFFER_26
 	if (!PyArg_ParseTuple(args, (char*)"s*s*", &key, &value))
 	#else
@@ -364,7 +385,7 @@ static PyObject* PyWriteBatch_Delete(PyWriteBatch* self, PyObject* args)
 	PY_LEVELDB_DEFINE_BUFFER(key);
 
 	#if defined PY_LEVELDB_BUFFER_3
-	if (!PyArg_ParseTuple(args, (char*)"f*", &key))
+	if (!PyArg_ParseTuple(args, (char*)"y*", &key))
 	#elif defined PY_LEVELDB_BUFFER_26
 	if (!PyArg_ParseTuple(args, (char*)"s*", &key))
 	#else
@@ -430,7 +451,7 @@ static PyObject* PyLevelDB_Write(PyLevelDB* self, PyObject* args, PyObject* kwds
 	return Py_None;
 }
 
-static PyObject* PyLevelDB_RangeIter_(PyObject* self, PyLevelDB* db, const leveldb::Snapshot* snapshot, PyObject* args, PyObject* kwds)
+static PyObject* PyLevelDB_RangeIter_(PyLevelDB* self, const leveldb::Snapshot* snapshot, PyObject* args, PyObject* kwds)
 {
 	PY_LEVELDB_DEFINE_BUFFER(a);
 	PY_LEVELDB_DEFINE_BUFFER(b);
@@ -447,7 +468,7 @@ static PyObject* PyLevelDB_RangeIter_(PyObject* self, PyLevelDB* db, const level
 	#endif
 
 	#if defined PY_LEVELDB_BUFFER_3
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, (char*)"|f*f*O!O!O!O!", (char**)kwargs, &a, &b, &PyBool_Type, &verify_checksums, &PyBool_Type, &fill_cache, &PyBool_Type, &include_value, &PyBool_Type, &is_reverse))
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, (char*)"|y*y*O!O!O!O!", (char**)kwargs, &a, &b, &PyBool_Type, &verify_checksums, &PyBool_Type, &fill_cache, &PyBool_Type, &include_value, &PyBool_Type, &is_reverse))
 	#elif defined PY_LEVELDB_BUFFER_26
 	if (!PyArg_ParseTupleAndKeywords(args, kwds, (char*)"|s*s*O!O!O!O!", (char**)kwargs, &a, &b, &PyBool_Type, &verify_checksums, &PyBool_Type, &fill_cache, &PyBool_Type, &include_value, &PyBool_Type, &is_reverse))
 	#else
@@ -495,7 +516,7 @@ static PyObject* PyLevelDB_RangeIter_(PyObject* self, PyLevelDB* db, const level
 
 	Py_BEGIN_ALLOW_THREADS
 
-	iter = db->_db->NewIterator(read_options);
+	iter = self->_db->NewIterator(read_options);
 
 	// if we have an iterator
 	if (iter) {
@@ -518,7 +539,7 @@ static PyObject* PyLevelDB_RangeIter_(PyObject* self, PyLevelDB* db, const level
 				} else {
 					leveldb::Slice a = key;
 					leveldb::Slice b = iter->key();
-					int c = db->_options->comparator->Compare(a, b);
+					int c = self->_options->comparator->Compare(a, b);
 
 					if (c) {
 						iter->Prev();
@@ -558,17 +579,17 @@ static PyObject* PyLevelDB_RangeIter_(PyObject* self, PyLevelDB* db, const level
 		}
 	}
 
-	return PyLevelDBIter_New(self, db, iter, s, (include_value == Py_True) ? 1 : 0, (is_reverse == Py_True) ? 1 : 0);
+	return PyLevelDBIter_New((PyObject*)self, self, iter, s, (include_value == Py_True) ? 1 : 0, (is_reverse == Py_True) ? 1 : 0);
 }
 
 static PyObject* PyLevelDB_RangeIter(PyLevelDB* self, PyObject* args, PyObject* kwds)
 {
-	return PyLevelDB_RangeIter_((PyObject*)self, self, 0, args, kwds);
+	return PyLevelDB_RangeIter_(self, 0, args, kwds);
 }
 
 static PyObject* PyLevelDBSnapshot_RangeIter(PyLevelDBSnapshot* self, PyObject* args, PyObject* kwds)
 {
-	return PyLevelDB_RangeIter_((PyObject*)self, self->db, self->snapshot, args, kwds);
+	return PyLevelDB_RangeIter_(self->db, self->snapshot, args, kwds);
 }
 
 static PyObject* PyLevelDB_GetStatus(PyLevelDB* self)
@@ -580,7 +601,11 @@ static PyObject* PyLevelDB_GetStatus(PyLevelDB* self)
 		return 0;
 	}
 
+	#if PY_MAJOR_VERSION >= 3	
+	return PyUnicode_DecodeLatin1(value.c_str(), value.size(), 0);
+	#else
 	return PyString_FromString(value.c_str());
+	#endif
 }
 
 static PyObject* PyLevelDB_CreateSnapshot(PyLevelDB* self)
@@ -591,12 +616,12 @@ static PyObject* PyLevelDB_CreateSnapshot(PyLevelDB* self)
 }
 
 static PyMethodDef PyLevelDB_methods[] = {
-	{(char*)"Put",       (PyCFunction)PyLevelDB_Put,       METH_KEYWORDS, (char*)"add a key/value pair to database, with an optional synchronous disk write" },
-	{(char*)"Get",       (PyCFunction)PyLevelDB_Get,       METH_KEYWORDS, (char*)"get a value from the database" },
-	{(char*)"Delete",    (PyCFunction)PyLevelDB_Delete,    METH_KEYWORDS, (char*)"delete a value in the database" },
-	{(char*)"Write",     (PyCFunction)PyLevelDB_Write,     METH_KEYWORDS, (char*)"apply a write-batch"},
-	{(char*)"RangeIter", (PyCFunction)PyLevelDB_RangeIter, METH_KEYWORDS, (char*)"key/value range scan"},
-	{(char*)"GetStats",  (PyCFunction)PyLevelDB_GetStatus, METH_NOARGS,   (char*)"get a mapping of all DB statistics"},
+	{(char*)"Put",       (PyCFunction)PyLevelDB_Put,       METH_VARARGS | METH_KEYWORDS, (char*)"add a key/value pair to database, with an optional synchronous disk write" },
+	{(char*)"Get",       (PyCFunction)PyLevelDB_Get,       METH_VARARGS | METH_KEYWORDS, (char*)"get a value from the database" },
+	{(char*)"Delete",    (PyCFunction)PyLevelDB_Delete,    METH_VARARGS | METH_KEYWORDS, (char*)"delete a value in the database" },
+	{(char*)"Write",     (PyCFunction)PyLevelDB_Write,     METH_VARARGS | METH_KEYWORDS, (char*)"apply a write-batch"},
+	{(char*)"RangeIter", (PyCFunction)PyLevelDB_RangeIter, METH_VARARGS | METH_KEYWORDS, (char*)"key/value range scan"},
+	{(char*)"GetStats",  (PyCFunction)PyLevelDB_GetStatus, METH_VARARGS | METH_NOARGS,   (char*)"get a mapping of all DB statistics"},
 	{(char*)"CreateSnapshot", (PyCFunction)PyLevelDB_CreateSnapshot, METH_NOARGS, (char*)"create a new snapshot from current DB state"},
 	{NULL}
 };
@@ -608,8 +633,8 @@ static PyMethodDef PyWriteBatch_methods[] = {
 };
 
 static PyMethodDef PyLevelDBSnapshot_methods[] = {
-	{(char*)"Get",       (PyCFunction)PyLevelDBSnaphot_Get,       METH_KEYWORDS, (char*)"get a value from the snapshot" },
-	{(char*)"RangeIter", (PyCFunction)PyLevelDBSnapshot_RangeIter, METH_KEYWORDS, (char*)"key/value range scan"},
+	{(char*)"Get",       (PyCFunction)PyLevelDBSnaphot_Get,       METH_VARARGS | METH_KEYWORDS, (char*)"get a value from the snapshot" },
+	{(char*)"RangeIter", (PyCFunction)PyLevelDBSnapshot_RangeIter, METH_VARARGS | METH_KEYWORDS, (char*)"key/value range scan"},
 	{NULL}
 };
 
@@ -827,8 +852,12 @@ PyDoc_STRVAR(PyWriteBatch_doc,
 PyDoc_STRVAR(PyLevelDBSnapshot_doc, "");
 
 PyTypeObject PyLevelDB_Type = {
+	#if PY_MAJOR_VERSION >= 3
+	PyVarObject_HEAD_INIT(NULL, 0)
+	#else
 	PyObject_HEAD_INIT(NULL)
-	0,                             /*ob_size*/
+	0,
+	#endif
 	(char*)"leveldb.LevelDB",      /*tp_name*/
 	sizeof(PyLevelDB),             /*tp_basicsize*/
 	0,                             /*tp_itemsize*/
@@ -870,8 +899,12 @@ PyTypeObject PyLevelDB_Type = {
 
 
 PyTypeObject PyWriteBatch_Type = {
+	#if PY_MAJOR_VERSION >= 3
+	PyVarObject_HEAD_INIT(NULL, 0)
+	#else
 	PyObject_HEAD_INIT(NULL)
-	0,                                /*ob_size*/
+	0,
+	#endif
 	(char*)"leveldb.WriteBatch",      /*tp_name*/
 	sizeof(PyWriteBatch),             /*tp_basicsize*/
 	0,                                /*tp_itemsize*/
@@ -912,8 +945,12 @@ PyTypeObject PyWriteBatch_Type = {
 };
 
 PyTypeObject PyLevelDBSnapshot_Type = {
+	#if PY_MAJOR_VERSION >= 3
+	PyVarObject_HEAD_INIT(NULL, 0)
+	#else
 	PyObject_HEAD_INIT(NULL)
-	0,                                /*ob_size*/
+	0,
+	#endif
 	(char*)"leveldb.Snapshot",      /*tp_name*/
 	sizeof(PyLevelDBSnapshot),             /*tp_basicsize*/
 	0,                                /*tp_itemsize*/
@@ -1006,7 +1043,11 @@ static PyObject* PyLevelDBIter_next(PyLevelDBIter* iter)
 	}
 
 	// get key and (optional) value
+	#if PY_MAJOR_VERSION >= 3
+	PyObject* key = PyByteArray_FromStringAndSize(iter->iterator->key().data(), iter->iterator->key().size());
+	#else
 	PyObject* key = PyString_FromStringAndSize(iter->iterator->key().data(), iter->iterator->key().size());
+	#endif
 	PyObject* value = 0;
 	PyObject* ret = key;
 
@@ -1014,7 +1055,11 @@ static PyObject* PyLevelDBIter_next(PyLevelDBIter* iter)
 		return 0;
 
 	if (iter->include_value) {
+		#if PY_MAJOR_VERSION >= 3
+		value = PyByteArray_FromStringAndSize(iter->iterator->value().data(), iter->iterator->value().size());
+		#else
 		value = PyString_FromStringAndSize(iter->iterator->value().data(), iter->iterator->value().size());
+		#endif
 
 		if (value == 0) {
 			Py_XDECREF(key);
@@ -1047,8 +1092,12 @@ static PyObject* PyLevelDBIter_next(PyLevelDBIter* iter)
 }
 
 PyTypeObject PyLevelDBIter_Type = {
+	#if PY_MAJOR_VERSION >= 3
+	PyVarObject_HEAD_INIT(NULL, 0)
+	#else
 	PyObject_HEAD_INIT(NULL)
 	0,
+	#endif
 	(char*)"leveldb-iterator",       /* tp_name */
 	sizeof(PyLevelDBIter),             /* tp_basicsize */
 	0,                               /* tp_itemsize */
