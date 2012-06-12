@@ -20,9 +20,9 @@ setup(
 		'Development Status :: 4 - Beta',
 		'Environment :: Other Environment',
 		'Intended Audience :: Developers',
-		'License :: OSI Approved :: GNU Library or Lesser General Public License (LGPL)',
+		'License :: OSI Approved :: BSD License',
 		'Operating System :: POSIX',
-		'Programming Language :: C',
+		'Programming Language :: C++',
 		'Programming Language :: Python',
 		'Programming Language :: Python :: 2.4',
 		'Programming Language :: Python :: 2.5',
@@ -35,9 +35,7 @@ setup(
 		'Topic :: Software Development :: Libraries'
 	],
 
-	#download_url = 'http://py-leveldb.googlecode.com/files/leveldb.-0.1.tar.gz',
 	description = 'Python bindings for leveldb database library',
-	# long_description = 
 
 	packages = ['leveldb'],
 	package_dir = {'leveldb': ''},
