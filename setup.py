@@ -4,7 +4,11 @@
 # See LICENSE for details.
 
 import sys
-from distutils.core import setup, Extension
+
+try:
+	from setuptools import setup, Extension
+except ImportError:
+	from distutils.core import setup, Extension
 
 extra_compile_args = ['-I./leveldb/include', '-fPIC', '-Wall', '-g2', '-D_GNU_SOURCE', '-O2', '-DNDEBUG']
 extra_link_args = ['-L./leveldb', '-Bstatic', '-lleveldb', '-L./snappy-read-only/.libs/', '-Bstatic', '-lsnappy']
