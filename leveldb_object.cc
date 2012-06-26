@@ -12,10 +12,10 @@ static void PyLevelDB_set_error(leveldb::Status& status)
 	PyErr_SetString(leveldb_exception, status.ToString().c_str());
 }
 
-const char leveldb_repair_db_doc[] =
+const char pyleveldb_repair_db_doc[] =
 "leveldb.RepairDB(db_dir)\n\nAttempts to recover as much data as possible from a corrupt database."
 ;
-PyObject* leveldb_repair_db(PyLevelDB* self, PyObject* args)
+extern PyObject* pyleveldb_repair_db(PyLevelDB* self, PyObject* args)
 {
 	const char* db_dir = 0;
 
@@ -39,10 +39,10 @@ PyObject* leveldb_repair_db(PyLevelDB* self, PyObject* args)
 	return Py_None;
 }
 
-const char leveldb_destroy_db_doc[] =
+const char pyleveldb_destroy_db_doc[] =
 "leveldb.DestroyDB(db_dir)\n\nAttempts to recover as much data as possible from a corrupt database."
 ;
-PyObject* leveldb_destroy_db(PyObject* self, PyObject* args)
+extern PyObject* pyleveldb_destroy_db(PyObject* self, PyObject* args)
 {
 	const char* db_dir = 0;
 
@@ -242,14 +242,16 @@ static PyObject* PyLevelDB_Get_(PyLevelDB* self, leveldb::DB* db, const leveldb:
 {
 	PyObject* verify_checksums = Py_False;
 	PyObject* fill_cache = Py_True;
-	const char* kwargs[] = {"key", "verify_checksums", "fill_cache", 0};
+	PyObject* failobj = 0;
+
+	const char* kwargs[] = {"key", "verify_checksums", "fill_cache", "default", 0};
 
 	leveldb::Status status;
 	std::string value;
 
 	PY_LEVELDB_DEFINE_BUFFER(key);
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, (char*)PARAM_S "|O!O!", (char**)kwargs, PARAM_V(key), &PyBool_Type, &verify_checksums, &PyBool_Type, &fill_cache))
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, (char*)PARAM_S "|O!O!O", (char**)kwargs, PARAM_V(key), &PyBool_Type, &verify_checksums, &PyBool_Type, &fill_cache, &failobj))
 		return 0;
 
 	PY_LEVELDB_BEGIN_ALLOW_THREADS
@@ -268,6 +270,11 @@ static PyObject* PyLevelDB_Get_(PyLevelDB* self, leveldb::DB* db, const leveldb:
 	PY_LEVELDB_RELEASE_BUFFER(key);
 
 	if (status.IsNotFound()) {
+		if (failobj) {
+			Py_INCREF(failobj);
+			return failobj;
+		}
+
 		PyErr_SetNone(PyExc_KeyError);
 		return 0;
 	}

@@ -20,12 +20,6 @@ extern "C" {
 
 #include <vector>
 
-extern const char leveldb_repair_db_doc[];
-extern const char leveldb_destroy_db_doc[];
-
-extern "C" PyObject* leveldb_repair_db(PyObject* o, PyObject* args);
-extern "C" PyObject* leveldb_destroy_db(PyObject* o, PyObject* args);
-
 typedef struct {
 	PyObject_HEAD
 
@@ -95,5 +89,11 @@ extern PyTypeObject PyWriteBatch_Type;
 #define PyWriteBatch_Check(op) PyObject_TypeCheck(op, &PyWriteBatch_Type)
 
 extern PyObject* leveldb_exception;
+
+extern const char pyleveldb_repair_db_doc[];
+extern const char pyleveldb_destroy_db_doc[];
+
+extern PyObject* pyleveldb_repair_db(PyLevelDB* self, PyObject* args);
+extern PyObject* pyleveldb_destroy_db(PyObject* self, PyObject* args);
 
 #endif

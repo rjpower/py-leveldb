@@ -7,8 +7,8 @@
 
 static PyMethodDef leveldb_extension_methods[] =
 {
-	{ (char*)"RepairDB",  (PyCFunction)leveldb_repair_db,  METH_VARARGS, (char*)leveldb_repair_db_doc },
-	{ (char*)"DestroyDB", (PyCFunction)leveldb_destroy_db, METH_VARARGS, (char*)leveldb_destroy_db_doc },
+	{ (char*)"RepairDB",  (PyCFunction)pyleveldb_repair_db,  METH_VARARGS, (char*)pyleveldb_repair_db_doc  },
+	{ (char*)"DestroyDB", (PyCFunction)pyleveldb_destroy_db, METH_VARARGS, (char*)pyleveldb_destroy_db_doc },
 	{NULL, NULL},
 };
 
