@@ -15,5 +15,5 @@ set -e;
 	git clone https://code.google.com/p/leveldb/ || (cd leveldb; git pull);
 	cd leveldb;
 	make clean;
-	make LDFLAGS='-L../snappy-read-only/.libs/ -Bstatic -lsnappy' OPT='-fPIC -O2 -DNDEBUG -DSNAPPY -I../snappy-read-only' SNAPPY_CFLAGS=''
+	make libleveldb.a LDFLAGS='-L../snappy-read-only/.libs/ -Bstatic -lsnappy' OPT='-fPIC -O2 -DNDEBUG -DSNAPPY -I../snappy-read-only' SNAPPY_CFLAGS=''
 )
