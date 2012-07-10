@@ -72,11 +72,14 @@ static void PyLevelDB_dealloc(PyLevelDB* self)
 	delete self->_db;
 	delete self->_options;
 	delete self->_cache;
+	if (self->_comparator != leveldb::BytewiseComparator())
+		delete self->_comparator;
 	Py_END_ALLOW_THREADS
 
 	self->_db = 0;
 	self->_options = 0;
 	self->_cache = 0;
+	self->_comparator = 0;
 	self->n_iterators = 0;
 	self->n_snapshots = 0;
 
@@ -128,6 +131,7 @@ static PyObject* PyLevelDB_new(PyTypeObject* type, PyObject* args, PyObject* kwd
 		self->_db = 0;
 		self->_options = 0;
 		self->_cache = 0;
+		self->_comparator = 0;
 		self->n_iterators = 0;
 		self->n_snapshots = 0;
 	}
@@ -258,7 +262,7 @@ static PyObject* PyLevelDB_Get_(PyLevelDB* self, leveldb::DB* db, const leveldb:
 
 	PY_LEVELDB_SLICE(key);
 
-	leveldb::ReadOptions options;;
+	leveldb::ReadOptions options;
 	options.verify_checksums = (verify_checksums == Py_True) ? true : false;
 	options.fill_cache = (fill_cache == Py_True) ? true : false;
 	options.snapshot = snapshot;
@@ -588,18 +592,30 @@ static PyMethodDef PyLevelDBSnapshot_methods[] = {
 	{NULL}
 };
 
+static const leveldb::Comparator* pyleveldb_get_comparator(const char* name)
+{
+	if (name == 0 or strcmp(name, "bytewise") == 0)
+		return leveldb::BytewiseComparator();
+
+	PyErr_SetString(PyExc_ValueError, "comparator not supported");
+	return 0;
+}
+
 static int PyLevelDB_init(PyLevelDB* self, PyObject* args, PyObject* kwds)
 {
 	// cleanup
-	if (self->_db || self->_cache || self->_options) {
+	if (self->_db || self->_cache || self->_comparator || self->_options) {
 		Py_BEGIN_ALLOW_THREADS
 		delete self->_db;
 		delete self->_options;
 		delete self->_cache;
+		if (self->_comparator != leveldb::BytewiseComparator())
+			delete self->_comparator;
 		Py_END_ALLOW_THREADS
 		self->_db = 0;
 		self->_options = 0;
 		self->_cache = 0;
+		self->_comparator = 0;
 	}
 
 	// get params
@@ -613,9 +629,10 @@ static int PyLevelDB_init(PyLevelDB* self, PyObject* args, PyObject* kwds)
 	int block_size = 4096;
 	int max_open_files = 1000;
 	int block_restart_interval = 16;
-	const char* kwargs[] = {"filename", "create_if_missing", "error_if_exists", "paranoid_checks", "write_buffer_size", "block_size", "max_open_files", "block_restart_interval", "block_cache_size", 0};
+	const char* kwargs[] = {"filename", "create_if_missing", "error_if_exists", "paranoid_checks", "write_buffer_size", "block_size", "max_open_files", "block_restart_interval", "block_cache_size", "comparator_name", 0};
+	const char* comparator_name = 0;
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, (char*)"s|O!O!O!iiiii", (char**)kwargs,
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, (char*)"s|O!O!O!iiiiis", (char**)kwargs,
 		&db_dir,
 		&PyBool_Type, &create_if_missing,
 		&PyBool_Type, &error_if_exists,
@@ -624,7 +641,8 @@ static int PyLevelDB_init(PyLevelDB* self, PyObject* args, PyObject* kwds)
 		&block_size,
 		&max_open_files,
 		&block_restart_interval,
-		&block_cache_size))
+		&block_cache_size,
+		&comparator_name))
 		return -1;
 
 	if (write_buffer_size < 0 || block_size < 0 || max_open_files < 0 || block_restart_interval < 0 || block_cache_size < 0) {
@@ -632,15 +650,25 @@ static int PyLevelDB_init(PyLevelDB* self, PyObject* args, PyObject* kwds)
 		return -1;
 	}
 
+	// get comparator
+	const leveldb::Comparator* c = pyleveldb_get_comparator(comparator_name);
+
+	if (c == 0)
+		return -1;
+
 	// open database
 	self->_options = new leveldb::Options();
 	self->_cache = leveldb::NewLRUCache(block_cache_size);
+	self->_comparator = c;
 
-	if (self->_options == 0 || self->_cache == 0) {
+	if (self->_options == 0 || self->_cache == 0 || self->_comparator == 0) {
 		delete self->_options;
 		delete self->_cache;
+		if (self->_comparator != leveldb::BytewiseComparator())
+			delete self->_comparator;
 		self->_options = 0;
 		self->_cache = 0;
+		self->_comparator = 0;
 		PyErr_NoMemory();
 		return -1;
 	}
@@ -654,6 +682,7 @@ static int PyLevelDB_init(PyLevelDB* self, PyObject* args, PyObject* kwds)
 	self->_options->block_restart_interval = block_restart_interval;
 	self->_options->compression = leveldb::kSnappyCompression;
 	self->_options->block_cache = self->_cache;
+	self->_options->comparator = self->_comparator;
 	leveldb::Status status;
 
 	// note: copy string parameter, since we might lose it when we release the GIL
@@ -666,8 +695,11 @@ static int PyLevelDB_init(PyLevelDB* self, PyObject* args, PyObject* kwds)
 		delete self->_db;
 		delete self->_options;
 		delete self->_cache;
+		if (self->_comparator != leveldb::BytewiseComparator())
+			delete self->_comparator;
 		self->_options = 0;
 		self->_cache = 0;
+		self->_comparator = 0;
 		self->_db = 0;
 	}
 

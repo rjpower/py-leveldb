@@ -36,7 +36,8 @@ class TestLevelDB(unittest.TestCase):
 			'write_buffer_size': 2 * (2 << 20),
 			'block_size': 4096,
 			'max_open_files': 1000,
-			'block_restart_interval': 16
+			'block_restart_interval': 16,
+			'comparator_name': 'bytewise'
 		}
 
 	def _open(self, *args, **kwargs):

@@ -28,6 +28,7 @@ typedef struct {
 	leveldb::DB* _db;
 	leveldb::Options* _options;
 	leveldb::Cache* _cache;
+	const leveldb::Comparator* _comparator;
 
 	// number of open snapshots, associated with LevelDB object
 	int n_snapshots;
