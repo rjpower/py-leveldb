@@ -3,6 +3,8 @@
 
 #include "leveldb_ext.h"
 
+#include <leveldb/comparator.h>
+
 static PyObject* PyLevelDBIter_New(PyObject* ref, PyLevelDB* db, leveldb::Iterator* iterator, std::string* bound, int include_value, int is_reverse);
 static PyObject* PyLevelDBSnapshot_New(PyLevelDB* db, const leveldb::Snapshot* snapshot);
 
@@ -180,7 +182,6 @@ static PyObject* PyLevelDBSnapshot_new(PyTypeObject* type, PyObject* args, PyObj
 #define PY_LEVELDB_END_ALLOW_THREADS Py_END_ALLOW_THREADS
 #define PY_LEVELDB_SLICE(n) leveldb::Slice n##_slice((const char*)(n).buf, (size_t)(n).len)
 #define PY_LEVELDB_STRING(n) std::string((const char*)(n).buf, (size_t)(n).len)
-#define PY_LEVELDB_IS_BUFFER(n) ((n).obj != 0)
 
 #if PY_MAJOR_VERSION >= 3
 	#define PARAM_S "y*"
@@ -199,7 +200,6 @@ static PyObject* PyLevelDBSnapshot_new(PyTypeObject* type, PyObject* args, PyObj
 #define PY_LEVELDB_END_ALLOW_THREADS
 #define PY_LEVELDB_SLICE(n) leveldb::Slice n##_slice((const char*)s_##n, (size_t)n_##n)
 #define PY_LEVELDB_STRING(n) std::string((const char*)s_##n, (size_t)n_##n);
-#define PY_LEVELDB_IS_BUFFER(n) (s_##n != 0)
 
 #define PARAM_S "t#"
 #define PY_LEVELDB_STRING_OR_BYTEARRAY PyString_FromStringAndSize
@@ -432,15 +432,19 @@ static PyObject* PyLevelDB_Write(PyLevelDB* self, PyObject* args, PyObject* kwds
 
 static PyObject* PyLevelDB_RangeIter_(PyLevelDB* self, const leveldb::Snapshot* snapshot, PyObject* args, PyObject* kwds)
 {
+	int is_from = 0;
+	int is_to = 0;
 	PY_LEVELDB_DEFINE_BUFFER(a);
 	PY_LEVELDB_DEFINE_BUFFER(b);
+	PyObject* _a = Py_None;
+	PyObject* _b = Py_None;
 	PyObject* verify_checksums = Py_False;
 	PyObject* fill_cache = Py_True;
 	PyObject* include_value = Py_True;
 	PyObject* is_reverse = Py_False;
 	const char* kwargs[] = {"key_from", "key_to", "verify_checksums", "fill_cache", "include_value", "reverse", 0};
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, (char*)"|" PARAM_S PARAM_S "O!O!O!O!", (char**)kwargs, PARAM_V(a), PARAM_V(b), &PyBool_Type, &verify_checksums, &PyBool_Type, &fill_cache, &PyBool_Type, &include_value, &PyBool_Type, &is_reverse))
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, (char*)"|OOO!O!O!O!", (char**)kwargs, &_a, &_b, &PyBool_Type, &verify_checksums, &PyBool_Type, &fill_cache, &PyBool_Type, &include_value, &PyBool_Type, &is_reverse))
 		return 0;
 
 	std::string from;
@@ -451,8 +455,19 @@ static PyObject* PyLevelDB_RangeIter_(PyLevelDB* self, const leveldb::Snapshot* 
 	read_options.fill_cache = (fill_cache == Py_True) ? true : false;
 	read_options.snapshot = snapshot;
 
-	int is_from = PY_LEVELDB_IS_BUFFER(a);
-	int is_to = PY_LEVELDB_IS_BUFFER(b);
+	if (_a != Py_None) {
+		is_from = 1;
+
+		if (!PyArg_Parse(_a, (char*)PARAM_S, PARAM_V(a)))
+			return 0;
+	}
+
+	if (_b != Py_None) {
+		is_to = 1;
+
+		if (!PyArg_Parse(_b, (char*)PARAM_S, PARAM_V(b)))
+			return 0;
+	}
 
 	if (is_from)
 		from = PY_LEVELDB_STRING(a);
@@ -462,8 +477,11 @@ static PyObject* PyLevelDB_RangeIter_(PyLevelDB* self, const leveldb::Snapshot* 
 
 	leveldb::Slice key(is_reverse == Py_True ? to.c_str() : from.c_str(), is_reverse == Py_True ? to.size() : from.size());
 
-	PY_LEVELDB_RELEASE_BUFFER(a);
-	PY_LEVELDB_RELEASE_BUFFER(b);
+	if (is_from)
+		PY_LEVELDB_RELEASE_BUFFER(a);
+
+	if (is_to)
+		PY_LEVELDB_RELEASE_BUFFER(b);
 
 	// create iterator
 	leveldb::Iterator* iter = 0;
@@ -587,7 +605,7 @@ static PyMethodDef PyWriteBatch_methods[] = {
 };
 
 static PyMethodDef PyLevelDBSnapshot_methods[] = {
-	{(char*)"Get",       (PyCFunction)PyLevelDBSnaphot_Get,       METH_VARARGS | METH_KEYWORDS, (char*)"get a value from the snapshot" },
+	{(char*)"Get",       (PyCFunction)PyLevelDBSnaphot_Get,        METH_VARARGS | METH_KEYWORDS, (char*)"get a value from the snapshot" },
 	{(char*)"RangeIter", (PyCFunction)PyLevelDBSnapshot_RangeIter, METH_VARARGS | METH_KEYWORDS, (char*)"key/value range scan"},
 	{NULL}
 };
@@ -695,8 +713,10 @@ static int PyLevelDB_init(PyLevelDB* self, PyObject* args, PyObject* kwds)
 		delete self->_db;
 		delete self->_options;
 		delete self->_cache;
+
 		if (self->_comparator != leveldb::BytewiseComparator())
 			delete self->_comparator;
+
 		self->_options = 0;
 		self->_cache = 0;
 		self->_comparator = 0;
