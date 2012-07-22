@@ -5,10 +5,6 @@
 
 import sys, string, unittest
 
-#from twisted.internet import defer, threads
-#from twisted.trial import unittest
-
-
 class TestLevelDB(unittest.TestCase):
 	def setUp(self):
 		# import local leveldb
@@ -44,6 +40,27 @@ class TestLevelDB(unittest.TestCase):
 		options = self._open_options(*args, **kwargs)
 		return self.leveldb.LevelDB(self.name, **options)
 
+	def testIteratorNone(self):
+		options = self._open_options()
+		db = self.leveldb.LevelDB(self.name, **options)
+
+		for s in 'abcdef':
+			db.Put(self._s(s), self._s(s))
+
+		kv_ = [(self._s('a'), self._s('a')), (self._s('b'), self._s('b')), (self._s('c'), self._s('c')), (self._s('d'), self._s('d')), (self._s('e'), self._s('e')), (self._s('f'), self._s('f'))]
+
+		kv = list(db.RangeIter(key_from = None, key_to = None))
+		self.assertEqual(kv, kv_)
+
+		kv = list(db.RangeIter(key_to = None))
+		self.assertEqual(kv, kv_)
+
+		kv = list(db.RangeIter(key_from = None))
+		self.assertEqual(kv, kv_)
+
+		kv = list(db.RangeIter())
+		self.assertEqual(kv, kv_)
+
 	def testIteratorCrash(self):
 		options = self._open_options()
 		db = self.leveldb.LevelDB(self.name, **options)
@@ -76,30 +93,30 @@ class TestLevelDB(unittest.TestCase):
 
 		db.Put(self._s('foo'), self._s('v4'))
 
-		self.assertEquals(s1.Get(self._s('foo')), self._s('v1'))
-		self.assertEquals(s2.Get(self._s('foo')), self._s('v2'))
-		self.assertEquals(s3.Get(self._s('foo')), self._s('v3'))
-		self.assertEquals(db.Get(self._s('foo')), self._s('v4'))
+		self.assertEqual(s1.Get(self._s('foo')), self._s('v1'))
+		self.assertEqual(s2.Get(self._s('foo')), self._s('v2'))
+		self.assertEqual(s3.Get(self._s('foo')), self._s('v3'))
+		self.assertEqual(db.Get(self._s('foo')), self._s('v4'))
 
 		# TBD: close properly
 		del s3
-		self.assertEquals(s1.Get(self._s('foo')), self._s('v1'))
-		self.assertEquals(s2.Get(self._s('foo')), self._s('v2'))
-		self.assertEquals(db.Get(self._s('foo')), self._s('v4'))
+		self.assertEqual(s1.Get(self._s('foo')), self._s('v1'))
+		self.assertEqual(s2.Get(self._s('foo')), self._s('v2'))
+		self.assertEqual(db.Get(self._s('foo')), self._s('v4'))
 
 		# TBD: close properly
 		del s1
-		self.assertEquals(s2.Get(self._s('foo')), self._s('v2'))
-		self.assertEquals(db.Get(self._s('foo')), self._s('v4'))
+		self.assertEqual(s2.Get(self._s('foo')), self._s('v2'))
+		self.assertEqual(db.Get(self._s('foo')), self._s('v4'))
 
 		# TBD: close properly
 		del s2
-		self.assertEquals(db.Get(self._s('foo')), self._s('v4'))
+		self.assertEqual(db.Get(self._s('foo')), self._s('v4'))
 
 		# re-open
 		del db
 		db = self._open()
-		self.assertEquals(db.Get(self._s('foo')), self._s('v4'))
+		self.assertEqual(db.Get(self._s('foo')), self._s('v4'))
 
 	def ClearDB(self, db):
 		for k in list(db.RangeIter(include_value = False, reverse = True)):
@@ -135,75 +152,75 @@ class TestLevelDB(unittest.TestCase):
 	def _test_uppercase_get(self, db):
 		for k in self.uppercase:
 			v = db.Get(self._s(k))
-			self.assertEquals(v, self._s('hello'))
-			self.assert_(k in self.uppercase)
+			self.assertEqual(v, self._s('hello'))
+			self.assertTrue(k in self.uppercase)
 
 	def _test_uppercase_iter(self, db):
 		s = self._join(k for k, v in db.RangeIter(self._s('J'), self._s('M')))
-		self.assertEquals(s, self._s('JKLM'))
+		self.assertEqual(s, self._s('JKLM'))
 
 		s = self._join(k for k, v in db.RangeIter(self._s('S')))
-		self.assertEquals(s, self._s('STUVWXYZ'))
+		self.assertEqual(s, self._s('STUVWXYZ'))
 
 		s = self._join(k for k, v in db.RangeIter(key_to = self._s('E')))
-		self.assertEquals(s, self._s('ABCDE'))
+		self.assertEqual(s, self._s('ABCDE'))
 
 	def _test_uppercase_iter_rev(self, db):
 		# inside range
 		s = self._join(k for k, v in db.RangeIter(self._s('J'), self._s('M'), reverse = True))
-		self.assertEquals(s, self._s('MLKJ'))
+		self.assertEqual(s, self._s('MLKJ'))
 
 		# partly outside range
 		s = self._join(k for k, v in db.RangeIter(self._s('Z'), self._s(chr(ord('Z') + 1)), reverse = True))
-		self.assertEquals(s, self._s('Z'))
+		self.assertEqual(s, self._s('Z'))
 		s = self._join(k for k, v in db.RangeIter(self._s(chr(ord('A') - 1)), self._s('A'), reverse = True))
-		self.assertEquals(s, self._s('A'))
+		self.assertEqual(s, self._s('A'))
 
 		# wholly outside range
 		s = self._join(k for k, v in db.RangeIter(self._s(chr(ord('Z') + 1)), self._s(chr(ord('Z') + 2)), reverse = True))
-		self.assertEquals(s, self._s(''))
+		self.assertEqual(s, self._s(''))
 
 		s = self._join(k for k, v in db.RangeIter(self._s(chr(ord('A') - 2)), self._s(chr(ord('A') - 1)), reverse = True))
-		self.assertEquals(s, self._s(''))
+		self.assertEqual(s, self._s(''))
 
 		# lower limit
 		s = self._join(k for k, v in db.RangeIter(self._s('S'), reverse = True))
-		self.assertEquals(s, self._s('ZYXWVUTS'))
+		self.assertEqual(s, self._s('ZYXWVUTS'))
 
 		# upper limit
 		s = self._join(k for k, v in db.RangeIter(key_to = self._s('E'), reverse = True))
-		self.assertEquals(s, self._s('EDCBA'))
+		self.assertEqual(s, self._s('EDCBA'))
 
 	def _test_lowercase_iter(self, db):
 		s = self._join(k for k, v in db.RangeIter(self._s('j'), self._s('m')))
-		self.assertEquals(s, self._s('jklm'))
+		self.assertEqual(s, self._s('jklm'))
 
 		s = self._join(k for k, v in db.RangeIter(self._s('s')))
-		self.assertEquals(s, self._s('stuvwxyz'))
+		self.assertEqual(s, self._s('stuvwxyz'))
 
 		s = self._join(k for k, v in db.RangeIter(key_to = self._s('e')))
-		self.assertEquals(s, self._s('abcde'))
+		self.assertEqual(s, self._s('abcde'))
 
 	def _test_lowercase_iter(self, db):
 		s = self._join(k for k, v in db.RangeIter(self._s('j'), self._s('m'), reverse = True))
-		self.assertEquals(s, self._s('mlkj'))
+		self.assertEqual(s, self._s('mlkj'))
 
 		s = self._join(k for k, v in db.RangeIter(self._s('s'), reverse = True))
-		self.assertEquals(s, self._s('zyxwvuts'))
+		self.assertEqual(s, self._s('zyxwvuts'))
 
 		s = self._join(k for k, v in db.RangeIter(key_to = self._s('e'), reverse = True))
-		self.assertEquals(s, self._s('edcba'))
+		self.assertEqual(s, self._s('edcba'))
 
 	def _test_lowercase_get(self, db):
 		for k in self.lowercase:
 			v = db.Get(self._s(k))
-			self.assertEquals(v, self._s('hello'))
-			self.assert_(k in self.lowercase)
+			self.assertEqual(v, self._s('hello'))
+			self.assertTrue(k in self.lowercase)
 
 	def testIterationBasic(self):
 		db = self._open()
 		self._insert_lowercase(db)
-		self.assertEquals(self.CountDB(db), 26)
+		self.assertEqual(self.CountDB(db), 26)
 		self._test_lowercase_iter(db)
 		#self._test_lowercase_iter_rev(db)
 		self._test_lowercase_get(db)
@@ -212,7 +229,7 @@ class TestLevelDB(unittest.TestCase):
 		self._test_uppercase_iter(db)
 		self._test_uppercase_iter_rev(db)
 		self._test_uppercase_get(db)
-		self.assertEquals(self.CountDB(db), 26)
+		self.assertEqual(self.CountDB(db), 26)
 
 	# tried to re-produce http://code.google.com/p/leveldb/issues/detail?id=44
 	def testMe(self):
@@ -233,7 +250,7 @@ class TestLevelDB(unittest.TestCase):
 		del db
 		db = self._open()
 		v = list(db.RangeIter())
-		self.assertEquals(v, [(self._s('key3'), self._s('val1'))])
+		self.assertEqual(v, [(self._s('key3'), self._s('val1'))])
 
 	def testOpenSame(self):
 		a = self._open()
