@@ -264,43 +264,6 @@ private:
 		return 0;
 	}
 
-//	int CheckLongSign(PyObject* i) const
-//	{
-//		// http://docs.python.org/c-api/long.html
-//		int overflow = 0;
-//		PY_LONG_LONG s = PyLong_AsLongLongAndOverflow(i, &overflow);
-//
-//		if (s == -1 && overflow == 0) {
-//			assert(PyErr_Occurred());
-//			SetError();
-//			return 0;	
-//		}
-//
-//		if (overflow != 0) {
-//			PyErr_Clear();
-//			return overflow;
-//		}
-//
-//		if (s < 0)
-//			return -1;
-//		else if (s > 0)
-//			return 1;
-//		else
-//			return 0;
-//	}
-//
-//	int CheckIntSign(PyObject* i) const
-//	{
-//		long s = PyInt_AS_LONG(i);
-//
-//		if (s < 0)
-//			return -1;
-//		else if (s > 0)
-//			return 1;
-//		else
-//			return 0;
-//	}
-
 	void SetError() const
 	{
 		// we don't do too much
@@ -351,33 +314,13 @@ public:
 		}
 
 		PyObject* c = PyObject_CallFunctionObjArgs(comparator, a_, b_, 0);
+		int cmp = 0;
 
 		Py_XDECREF(a_);
 		Py_XDECREF(b_);
 
-		if (c == 0) {
+		if (c == 0 || !GetSign(c, &cmp))
 			SetError();
-			PyGILState_Release(gstate);
-			return 0;
-		}
-
-		int cmp = 0;
-
-		if (!GetSign(c, &cmp)) {
-			SetError();
-			PyGILState_Release(gstate);
-			return 0;
-		}
-
-		// these two call SetError() on failures
-//		if (PyInt_Check(c)) {
-//			cmp = CheckIntSign(c);
-//		} else if (PyLong_Check(c)) {
-//			cmp = CheckLongSign(c);
-//		} else {
-//			PyErr_SetString(PyExc_TypeError, "comparison function did not return an integer");
-//			SetError();
-//		}
 
 		PyGILState_Release(gstate);
 		return cmp;
