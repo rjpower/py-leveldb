@@ -9,6 +9,7 @@ extern "C" {
 
 #include "structmember.h"
 
+#include <stdlib.h>
 #include <stdio.h>
 #include <limits.h>
 }

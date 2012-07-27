@@ -10,7 +10,6 @@ static PyObject* PyLevelDBSnapshot_New(PyLevelDB* db, const leveldb::Snapshot* s
 
 static void PyLevelDB_set_error(leveldb::Status& status)
 {
-	//struct leveldb_extension_state* st = GETSTATE((PyObject*)m);
 	PyErr_SetString(leveldb_exception, status.ToString().c_str());
 }
 
@@ -74,8 +73,10 @@ static void PyLevelDB_dealloc(PyLevelDB* self)
 	delete self->_db;
 	delete self->_options;
 	delete self->_cache;
+
 	if (self->_comparator != leveldb::BytewiseComparator())
 		delete self->_comparator;
+
 	Py_END_ALLOW_THREADS
 
 	self->_db = 0;
@@ -204,6 +205,201 @@ static PyObject* PyLevelDBSnapshot_new(PyTypeObject* type, PyObject* args, PyObj
 #define PARAM_S "t#"
 #define PY_LEVELDB_STRING_OR_BYTEARRAY PyString_FromStringAndSize
 #endif
+
+class PythonComparatorWrapper : public leveldb::Comparator {
+
+public:
+
+	PythonComparatorWrapper(const char* name, PyObject* comparator) :
+		name(name),
+		comparator(comparator),
+		last_exception_type(0),
+		last_exception_value(0),
+		last_exception_traceback(0)
+	{
+		Py_INCREF(comparator);
+		#if PY_MAJOR_VERSION >= 3
+		zero = PyLong_FromLong(0);
+		#else
+		zero = PyInt_FromLong(0);
+		#endif
+	}
+
+	~PythonComparatorWrapper()
+	{
+		Py_DECREF(comparator);
+		Py_XDECREF(last_exception_type);
+		Py_XDECREF(last_exception_value);
+		Py_XDECREF(last_exception_traceback);
+		Py_XDECREF(zero);
+	}
+
+private:
+
+	int GetSign(PyObject* i, int* c) const
+	{
+		#if PY_MAJOR_VERSION >= 3
+		if (PyLong_Check(i)) {
+		#else
+		if (PyInt_Check(i) || PyLong_Check(i)) {
+		#endif
+			#if PY_MAJOR_VERSION >= 3
+			if (PyObject_RichCompareBool(i, zero, Py_LT))
+				*c = -1;
+			else if (PyObject_RichCompareBool(i, zero, Py_GT))
+				*c = 1;
+			else
+				*c = 0;
+			#else
+			*c = PyObject_Compare(i, zero);
+			#endif
+
+			if (PyErr_Occurred())
+				return 0;
+
+			return 1;
+		}
+
+		PyErr_SetString(PyExc_TypeError, "comparison value is not an integer");
+		return 0;
+	}
+
+//	int CheckLongSign(PyObject* i) const
+//	{
+//		// http://docs.python.org/c-api/long.html
+//		int overflow = 0;
+//		PY_LONG_LONG s = PyLong_AsLongLongAndOverflow(i, &overflow);
+//
+//		if (s == -1 && overflow == 0) {
+//			assert(PyErr_Occurred());
+//			SetError();
+//			return 0;	
+//		}
+//
+//		if (overflow != 0) {
+//			PyErr_Clear();
+//			return overflow;
+//		}
+//
+//		if (s < 0)
+//			return -1;
+//		else if (s > 0)
+//			return 1;
+//		else
+//			return 0;
+//	}
+//
+//	int CheckIntSign(PyObject* i) const
+//	{
+//		long s = PyInt_AS_LONG(i);
+//
+//		if (s < 0)
+//			return -1;
+//		else if (s > 0)
+//			return 1;
+//		else
+//			return 0;
+//	}
+
+	void SetError() const
+	{
+		// we don't do too much
+		fprintf(stderr, "py-leveldb: Python comparison failure. Unable to reliably continue. Goodbye cruel world.\n\n");
+		PyErr_Print();
+		fflush(stderr);
+		abort();
+
+//		assert(PyErr_Occurred());
+//		Py_XDECREF(last_exception_type);
+//		Py_XDECREF(last_exception_value);
+//		Py_XDECREF(last_exception_traceback);
+//		PyErr_Fetch(&last_exception_type, &last_exception_value, &last_exception_value);
+	}
+
+public:
+
+//	bool CheckAndSetError()
+//	{
+//		if (last_exception_type) {
+//			PyErr_Restore(last_exception_type, last_exception_value, last_exception_traceback);
+//			last_exception_type = 0;
+//			last_exception_value = 0;
+//			last_exception_traceback = 0;
+//			return true;
+//		}
+//
+//		return false;
+//	}
+
+	// this can be called from pretty much any leveldb threads
+	int Compare(const leveldb::Slice& a, const leveldb::Slice& b) const
+	{
+		// http://docs.python.org/dev/c-api/init.html#non-python-created-threads
+		PyGILState_STATE gstate;
+		gstate = PyGILState_Ensure();
+
+		// acquire python thread
+		PyObject* a_ = PY_LEVELDB_STRING_OR_BYTEARRAY(a.data(), a.size());
+		PyObject* b_ = PY_LEVELDB_STRING_OR_BYTEARRAY(b.data(), b.size());
+
+		if (a_ == 0 || b_ == 0) {
+			Py_XDECREF(a_);
+			Py_XDECREF(b_);
+			SetError();
+			PyGILState_Release(gstate);
+			return 0;
+		}
+
+		PyObject* c = PyObject_CallFunctionObjArgs(comparator, a_, b_, 0);
+
+		Py_XDECREF(a_);
+		Py_XDECREF(b_);
+
+		if (c == 0) {
+			SetError();
+			PyGILState_Release(gstate);
+			return 0;
+		}
+
+		int cmp = 0;
+
+		if (!GetSign(c, &cmp)) {
+			SetError();
+			PyGILState_Release(gstate);
+			return 0;
+		}
+
+		// these two call SetError() on failures
+//		if (PyInt_Check(c)) {
+//			cmp = CheckIntSign(c);
+//		} else if (PyLong_Check(c)) {
+//			cmp = CheckLongSign(c);
+//		} else {
+//			PyErr_SetString(PyExc_TypeError, "comparison function did not return an integer");
+//			SetError();
+//		}
+
+		PyGILState_Release(gstate);
+		return cmp;
+	}
+
+	const char* Name() const
+	{
+		return name.c_str();
+	}
+
+	void FindShortestSeparator(std::string*, const leveldb::Slice&) const { }
+	void FindShortSuccessor(std::string*) const { }
+
+private:
+
+	std::string name;
+	PyObject* comparator;
+	PyObject* last_exception_type;
+	PyObject* last_exception_value;
+	PyObject* last_exception_traceback;
+	PyObject* zero;
+};
 
 
 static PyObject* PyLevelDB_Put(PyLevelDB* self, PyObject* args, PyObject* kwds)
@@ -528,7 +724,9 @@ static PyObject* PyLevelDB_RangeIter_(PyLevelDB* self, const leveldb::Snapshot* 
 
 	// if iterator is empty, return an empty iterator object
 	if (!iter->Valid()) {
+		Py_BEGIN_ALLOW_THREADS
 		delete iter;
+		Py_END_ALLOW_THREADS
 		return PyLevelDBIter_New(0, 0, 0, 0, 0, 0);
 	}
 
@@ -539,14 +737,18 @@ static PyObject* PyLevelDB_RangeIter_(PyLevelDB* self, const leveldb::Snapshot* 
 		s = new std::string(to);
 
 		if (s == 0) {
+			Py_BEGIN_ALLOW_THREADS
 			delete iter;
+			Py_END_ALLOW_THREADS
 			return PyErr_NoMemory();
 		}
 	} else if (is_reverse == Py_True && is_from) {
 		s = new std::string(from);
 
 		if (s == 0) {
+			Py_BEGIN_ALLOW_THREADS
 			delete iter;
+			Py_END_ALLOW_THREADS
 			return PyErr_NoMemory();
 		}
 	}
@@ -610,13 +812,51 @@ static PyMethodDef PyLevelDBSnapshot_methods[] = {
 	{NULL}
 };
 
-static const leveldb::Comparator* pyleveldb_get_comparator(const char* name)
+static int pyleveldb_str_eq(PyObject* p, const char* s)
 {
-	if (name == 0 or strcmp(name, "bytewise") == 0)
+	// 8-bit string
+	#if PY_MAJOR_VERSION < 3
+	if (PyString_Check(p) && strcmp(PyString_AS_STRING(p), "bytewise") == 0)
+		return 1;
+	#endif
+
+	// unicode string
+	if (PyUnicode_Check(p)) {
+		size_t i = 0;
+		Py_UNICODE* c = PyUnicode_AS_UNICODE(p);
+
+		while (s[i] && c[i] && (int)s[i] == (int)c[i])
+			i++;
+
+		return ((int)s[i] == (int)c[i]);
+	}
+
+	return 0;
+}
+
+static const leveldb::Comparator* pyleveldb_get_comparator(PyObject* comparator)
+{
+	// default comparator
+	if (comparator == 0 || pyleveldb_str_eq(comparator, "bytewise"))
 		return leveldb::BytewiseComparator();
 
-	PyErr_SetString(PyExc_ValueError, "comparator not supported");
-	return 0;
+	// (name-ascii, python-callable)
+	const char* cmp_name = 0;
+	PyObject* cmp = 0;
+
+	if (!PyArg_Parse(comparator, (char*)"(sO)", &cmp_name, &cmp) || !PyCallable_Check(cmp)) {
+		PyErr_SetString(PyExc_TypeError, "comparator must be a string, or a 2-tuple (name, func)");
+		return 0;
+	}
+
+	const leveldb::Comparator* c = new PythonComparatorWrapper(cmp_name, cmp);
+
+	if (c == 0) {
+		PyErr_NoMemory();
+		return 0;
+	}
+
+	return c;
 }
 
 static int PyLevelDB_init(PyLevelDB* self, PyObject* args, PyObject* kwds)
@@ -624,12 +864,16 @@ static int PyLevelDB_init(PyLevelDB* self, PyObject* args, PyObject* kwds)
 	// cleanup
 	if (self->_db || self->_cache || self->_comparator || self->_options) {
 		Py_BEGIN_ALLOW_THREADS
+
 		delete self->_db;
 		delete self->_options;
 		delete self->_cache;
+
 		if (self->_comparator != leveldb::BytewiseComparator())
 			delete self->_comparator;
+
 		Py_END_ALLOW_THREADS
+
 		self->_db = 0;
 		self->_options = 0;
 		self->_cache = 0;
@@ -647,10 +891,11 @@ static int PyLevelDB_init(PyLevelDB* self, PyObject* args, PyObject* kwds)
 	int block_size = 4096;
 	int max_open_files = 1000;
 	int block_restart_interval = 16;
-	const char* kwargs[] = {"filename", "create_if_missing", "error_if_exists", "paranoid_checks", "write_buffer_size", "block_size", "max_open_files", "block_restart_interval", "block_cache_size", "comparator_name", 0};
-	const char* comparator_name = 0;
+	const char* kwargs[] = {"filename", "create_if_missing", "error_if_exists", "paranoid_checks", "write_buffer_size", "block_size", "max_open_files", "block_restart_interval", "block_cache_size", "comparator", 0};
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, (char*)"s|O!O!O!iiiiis", (char**)kwargs,
+	PyObject* comparator = 0;
+
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, (char*)"s|O!O!O!iiiiiO", (char**)kwargs,
 		&db_dir,
 		&PyBool_Type, &create_if_missing,
 		&PyBool_Type, &error_if_exists,
@@ -660,7 +905,7 @@ static int PyLevelDB_init(PyLevelDB* self, PyObject* args, PyObject* kwds)
 		&max_open_files,
 		&block_restart_interval,
 		&block_cache_size,
-		&comparator_name))
+		&comparator))
 		return -1;
 
 	if (write_buffer_size < 0 || block_size < 0 || max_open_files < 0 || block_restart_interval < 0 || block_cache_size < 0) {
@@ -669,7 +914,7 @@ static int PyLevelDB_init(PyLevelDB* self, PyObject* args, PyObject* kwds)
 	}
 
 	// get comparator
-	const leveldb::Comparator* c = pyleveldb_get_comparator(comparator_name);
+	const leveldb::Comparator* c = pyleveldb_get_comparator(comparator);
 
 	if (c == 0)
 		return -1;
@@ -680,13 +925,18 @@ static int PyLevelDB_init(PyLevelDB* self, PyObject* args, PyObject* kwds)
 	self->_comparator = c;
 
 	if (self->_options == 0 || self->_cache == 0 || self->_comparator == 0) {
+		Py_BEGIN_ALLOW_THREADS
 		delete self->_options;
 		delete self->_cache;
+
 		if (self->_comparator != leveldb::BytewiseComparator())
 			delete self->_comparator;
+		Py_END_ALLOW_THREADS
+
 		self->_options = 0;
 		self->_cache = 0;
 		self->_comparator = 0;
+
 		PyErr_NoMemory();
 		return -1;
 	}
@@ -706,6 +956,8 @@ static int PyLevelDB_init(PyLevelDB* self, PyObject* args, PyObject* kwds)
 	// note: copy string parameter, since we might lose it when we release the GIL
 	std::string _db_dir(db_dir);
 
+	int i = 0;
+
 	Py_BEGIN_ALLOW_THREADS
 	status = leveldb::DB::Open(*self->_options, _db_dir, &self->_db);
 
@@ -714,23 +966,24 @@ static int PyLevelDB_init(PyLevelDB* self, PyObject* args, PyObject* kwds)
 		delete self->_options;
 		delete self->_cache;
 
+		//! move out of thread block
 		if (self->_comparator != leveldb::BytewiseComparator())
 			delete self->_comparator;
 
+		self->_db = 0;
 		self->_options = 0;
 		self->_cache = 0;
 		self->_comparator = 0;
-		self->_db = 0;
+
+		i = -1;
 	}
 
 	Py_END_ALLOW_THREADS
 
-	if (!status.ok()) {
+	if (i == -1)
 		PyLevelDB_set_error(status);
-		return -1;
-	}
 
-	return 0;
+	return i;
 }
 
 static int PyWriteBatch_init(PyWriteBatch* self, PyObject* args, PyObject* kwds)
@@ -997,8 +1250,12 @@ static void PyLevelDBIter_clean(PyLevelDBIter* iter)
 	if (iter->db)
 		iter->db->n_iterators -= 1;
 
+	Py_BEGIN_ALLOW_THREADS
+
 	delete iter->iterator;
 	delete iter->bound;
+
+	Py_END_ALLOW_THREADS
 
 	Py_XDECREF(iter->ref);
 
@@ -1128,7 +1385,9 @@ static PyObject* PyLevelDBIter_New(PyObject* ref, PyLevelDB* db, leveldb::Iterat
 	PyLevelDBIter* iter = PyObject_GC_New(PyLevelDBIter, &PyLevelDBIter_Type);
 
 	if (iter == 0) {
+		Py_BEGIN_ALLOW_THREADS
 		delete iterator;
+		Py_END_ALLOW_THREADS
 		return 0;
 	}
 

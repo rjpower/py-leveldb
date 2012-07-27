@@ -24,7 +24,7 @@ class TestLevelDB(unittest.TestCase):
 		self.leveldb.DestroyDB(self.name)
 
 	def _open_options(self, create_if_missing = True, error_if_exists = False):
-		return {
+		v = {
 			'create_if_missing': True,
 			'error_if_exists': error_if_exists,
 			'paranoid_checks': False,
@@ -33,8 +33,25 @@ class TestLevelDB(unittest.TestCase):
 			'block_size': 4096,
 			'max_open_files': 1000,
 			'block_restart_interval': 16,
-			'comparator_name': 'bytewise'
+			'comparator': 'bytewise'
 		}
+
+		if sys.version_info[0] < 3:
+			def my_comparison(a, b):
+				return cmp(a, b)
+		else:
+			def my_comparison(a, b):
+				if a < b:
+					return -1
+				elif a > b:
+					return 1
+				else:
+					return 0
+
+		if True:
+			v['comparator'] = ('bytewise', my_comparison)
+
+		return v
 
 	def _open(self, *args, **kwargs):
 		options = self._open_options(*args, **kwargs)
