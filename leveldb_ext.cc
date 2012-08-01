@@ -112,6 +112,8 @@ extern "C" void initleveldb(void)
 		INITERROR;
 	}
 
+	PyEval_InitThreads();
+
 	#if PY_MAJOR_VERSION >= 3
 	return leveldb_module;
 	#endif
