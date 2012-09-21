@@ -16,7 +16,7 @@ static void PyLevelDB_set_error(leveldb::Status& status)
 const char pyleveldb_repair_db_doc[] =
 "leveldb.RepairDB(db_dir)\n\nAttempts to recover as much data as possible from a corrupt database."
 ;
-extern PyObject* pyleveldb_repair_db(PyLevelDB* self, PyObject* args)
+PyObject* pyleveldb_repair_db(PyLevelDB* self, PyObject* args)
 {
 	const char* db_dir = 0;
 
@@ -43,7 +43,7 @@ extern PyObject* pyleveldb_repair_db(PyLevelDB* self, PyObject* args)
 const char pyleveldb_destroy_db_doc[] =
 "leveldb.DestroyDB(db_dir)\n\nAttempts to recover as much data as possible from a corrupt database."
 ;
-extern PyObject* pyleveldb_destroy_db(PyObject* self, PyObject* args)
+PyObject* pyleveldb_destroy_db(PyObject* self, PyObject* args)
 {
 	const char* db_dir = 0;
 
@@ -718,7 +718,7 @@ static PyObject* PyLevelDB_GetStatus(PyLevelDB* self)
 		return 0;
 	}
 
-	#if PY_MAJOR_VERSION >= 3	
+	#if PY_MAJOR_VERSION >= 3
 	return PyUnicode_DecodeLatin1(value.c_str(), value.size(), 0);
 	#else
 	return PyString_FromString(value.c_str());

@@ -19,8 +19,9 @@ class TestLevelDB(unittest.TestCase):
 			self.lowercase = string.ascii_lowercase
 			self.uppercase = string.ascii_uppercase
 
-		# destroy previous database, if any
+		# repair/destroy previous database, if any
 		self.name = 'db_a'
+		self.leveldb.RepairDB(self.name)
 		self.leveldb.DestroyDB(self.name)
 
 	def _open_options(self, create_if_missing = True, error_if_exists = False):

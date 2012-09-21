@@ -10,7 +10,7 @@ set -e
 
 	# see http://python.org/download/releases/
 
-	wget -qc http://python.org/ftp/python/3.3.0/Python-3.3.0a4.tar.bz2;
+	wget -qc http://python.org/ftp/python/3.3.0/Python-3.3.0rc2.tar.bz2;
 	wget -qc http://python.org/ftp/python/3.2.3/Python-3.2.3.tar.bz2;
 	wget -qc http://python.org/ftp/python/3.2.3/Python-3.2.3.tar.bz2;
 	wget -qc http://python.org/ftp/python/3.1.5/Python-3.1.5.tar.bz2;
@@ -51,8 +51,8 @@ set -e
 
 	(
 		unset PYTHONDONTWRITEBYTECODE;
-		rm -rf Python-3.3.0a4-env;
-		Python-3.3.0a4-build/bin/pyvenv Python-3.3.0a4-env;
-		source Python-3.3.0a4-env/bin/activate;
+		rm -rf Python-3.3.0rc2-env;
+		Python-3.3.0a4-build/bin/pyvenv Python-3.3.0rc2-env;
+		source Python-3.3.0rc2-env/bin/activate;
 	)
 )
