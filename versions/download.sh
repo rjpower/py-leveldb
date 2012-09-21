@@ -21,7 +21,7 @@ set -e
 	wget -qc http://python.org/ftp/python/2.4.6/Python-2.4.6.tar.bz2;
 
 	# decompress
-	for i in `ls | grep bz2$ | grep 3.3.0`; do bzip2 -dc $i | tar -x; done
+	for i in `ls | grep bz2$`; do bzip2 -dc $i | tar -x; done
 
 	# apply patches
 	for i in `find -maxdepth 1 -type d | grep ^./P | grep -v build | grep -v env | grep -v 3.3.0 | sort`; do
