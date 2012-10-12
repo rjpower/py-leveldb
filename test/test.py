@@ -3,7 +3,7 @@
 # Copyright (c) Arni Mar Jonsson.
 # See LICENSE for details.
 
-import sys, string, unittest
+import sys, string, unittest, itertools
 
 class TestLevelDB(unittest.TestCase):
 	def setUp(self):
@@ -19,24 +19,7 @@ class TestLevelDB(unittest.TestCase):
 			self.lowercase = string.ascii_lowercase
 			self.uppercase = string.ascii_uppercase
 
-		# repair/destroy previous database, if any
-		self.name = 'db_a'
-		self.leveldb.RepairDB(self.name)
-		self.leveldb.DestroyDB(self.name)
-
-	def _open_options(self, create_if_missing = True, error_if_exists = False):
-		v = {
-			'create_if_missing': True,
-			'error_if_exists': error_if_exists,
-			'paranoid_checks': False,
-			'block_cache_size': 8 * (2 << 20),
-			'write_buffer_size': 2 * (2 << 20),
-			'block_size': 4096,
-			'max_open_files': 1000,
-			'block_restart_interval': 16,
-			'comparator': 'bytewise'
-		}
-
+		# comparator
 		if sys.version_info[0] < 3:
 			def my_comparison(a, b):
 				return cmp(a, b)
@@ -49,8 +32,28 @@ class TestLevelDB(unittest.TestCase):
 				else:
 					return 0
 
+		self.comparator = 'bytewise'
+
 		if True:
-			v['comparator'] = ('bytewise', my_comparison)
+			self.comparator = ('bytewise', my_comparison)
+
+		# repair/destroy previous database, if any
+		self.name = 'db_a'
+		self.leveldb.RepairDB(self.name, comparator = self.comparator)
+		self.leveldb.DestroyDB(self.name)
+
+	def _open_options(self, create_if_missing = True, error_if_exists = False):
+		v = {
+			'create_if_missing': True,
+			'error_if_exists': error_if_exists,
+			'paranoid_checks': False,
+			'block_cache_size': 8 * (2 << 20),
+			'write_buffer_size': 2 * (2 << 20),
+			'block_size': 4096,
+			'max_open_files': 1000,
+			'block_restart_interval': 16,
+			'comparator': self.comparator
+		}
 
 		return v
 
@@ -249,6 +252,23 @@ class TestLevelDB(unittest.TestCase):
 		self._test_uppercase_get(db)
 		self.assertEqual(self.CountDB(db), 26)
 
+	def testCompact(self):
+		db = self._open()
+		s = self._s('foo' * 10)
+
+		for i in itertools.count():
+			db.Put(self._s('%i' % i), s)
+
+			if i > 10000:
+				break
+
+		db.CompactRange(self._s('1000'), self._s('10000'))
+		db.CompactRange(start = self._s('1000'))
+		db.CompactRange(end = self._s('1000'))
+		db.CompactRange(start = self._s('1000'), end = None)
+		db.CompactRange(start = None, end = self._s('1000'))
+		db.CompactRange()
+
 	# tried to re-produce http://code.google.com/p/leveldb/issues/detail?id=44
 	def testMe(self):
 		db = self._open()
@@ -269,13 +289,6 @@ class TestLevelDB(unittest.TestCase):
 		db = self._open()
 		v = list(db.RangeIter())
 		self.assertEqual(v, [(self._s('key3'), self._s('val1'))])
-
-	def testOpenSame(self):
-		a = self._open()
-		a.Put(self._s('foo'), self._s('bar'))
-
-		# this one should fail, we need to fix this in the bindings
-		b = self._open()
 
 if __name__ == '__main__':
 	unittest.main()
