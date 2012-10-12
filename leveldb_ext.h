@@ -95,7 +95,7 @@ extern PyObject* leveldb_exception;
 extern const char pyleveldb_repair_db_doc[];
 extern const char pyleveldb_destroy_db_doc[];
 
-extern PyObject* pyleveldb_repair_db(PyLevelDB* self, PyObject* args);
+extern PyObject* pyleveldb_repair_db(PyLevelDB* self, PyObject* args, PyObject* kwds);
 extern PyObject* pyleveldb_destroy_db(PyObject* self, PyObject* args);
 
 #endif

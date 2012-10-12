@@ -13,33 +13,6 @@ static void PyLevelDB_set_error(leveldb::Status& status)
 	PyErr_SetString(leveldb_exception, status.ToString().c_str());
 }
 
-const char pyleveldb_repair_db_doc[] =
-"leveldb.RepairDB(db_dir)\n\nAttempts to recover as much data as possible from a corrupt database."
-;
-PyObject* pyleveldb_repair_db(PyLevelDB* self, PyObject* args)
-{
-	const char* db_dir = 0;
-
-	if (!PyArg_ParseTuple(args, (char*)"s", &db_dir))
-		return 0;
-
-	std::string _db_dir(db_dir);
-	leveldb::Status status;
-	leveldb::Options options;
-
-	Py_BEGIN_ALLOW_THREADS
-	status = leveldb::RepairDB(_db_dir.c_str(), options);
-	Py_END_ALLOW_THREADS
-
-	if (!status.ok()) {
-		PyLevelDB_set_error(status);
-		return 0;
-	}
-
-	Py_INCREF(Py_None);
-	return Py_None;
-}
-
 const char pyleveldb_destroy_db_doc[] =
 "leveldb.DestroyDB(db_dir)\n\nAttempts to recover as much data as possible from a corrupt database."
 ;
@@ -181,7 +154,7 @@ static PyObject* PyLevelDBSnapshot_new(PyTypeObject* type, PyObject* args, PyObj
 #define PARAM_V(n) &(n)
 #define PY_LEVELDB_BEGIN_ALLOW_THREADS Py_BEGIN_ALLOW_THREADS
 #define PY_LEVELDB_END_ALLOW_THREADS Py_END_ALLOW_THREADS
-#define PY_LEVELDB_SLICE(n) leveldb::Slice n##_slice((const char*)(n).buf, (size_t)(n).len)
+#define PY_LEVELDB_SLICE_VALUE(n) leveldb::Slice((const char*)(n).buf, (size_t)(n).len)
 #define PY_LEVELDB_STRING(n) std::string((const char*)(n).buf, (size_t)(n).len)
 
 #if PY_MAJOR_VERSION >= 3
@@ -199,7 +172,7 @@ static PyObject* PyLevelDBSnapshot_new(PyTypeObject* type, PyObject* args, PyObj
 #define PARAM_V(n) &s_##n, &n_##n
 #define PY_LEVELDB_BEGIN_ALLOW_THREADS
 #define PY_LEVELDB_END_ALLOW_THREADS
-#define PY_LEVELDB_SLICE(n) leveldb::Slice n##_slice((const char*)s_##n, (size_t)n_##n)
+#define PY_LEVELDB_SLICE_VALUE(n) leveldb::Slice((const char*)s_##n, (size_t)n_##n)
 #define PY_LEVELDB_STRING(n) std::string((const char*)s_##n, (size_t)n_##n);
 
 #define PARAM_S "t#"
@@ -361,8 +334,8 @@ static PyObject* PyLevelDB_Put(PyLevelDB* self, PyObject* args, PyObject* kwds)
 
 	PY_LEVELDB_BEGIN_ALLOW_THREADS
 
-	PY_LEVELDB_SLICE(key);
-	PY_LEVELDB_SLICE(value);
+	leveldb::Slice key_slice = PY_LEVELDB_SLICE_VALUE(key);
+	leveldb::Slice value_slice = PY_LEVELDB_SLICE_VALUE(value);
 
 	options.sync = (sync == Py_True) ? true : false;
 	status = self->_db->Put(options, key_slice, value_slice);
@@ -399,7 +372,7 @@ static PyObject* PyLevelDB_Get_(PyLevelDB* self, leveldb::DB* db, const leveldb:
 
 	PY_LEVELDB_BEGIN_ALLOW_THREADS
 
-	PY_LEVELDB_SLICE(key);
+	leveldb::Slice key_slice = PY_LEVELDB_SLICE_VALUE(key);
 
 	leveldb::ReadOptions options;
 	options.verify_checksums = (verify_checksums == Py_True) ? true : false;
@@ -445,7 +418,7 @@ static PyObject* PyLevelDB_Delete(PyLevelDB* self, PyObject* args, PyObject* kwd
 	PyObject* sync = Py_False;
 	const char* kwargs[] = {"key", "sync", 0};
 
-	PY_LEVELDB_DEFINE_BUFFER(key);	
+	PY_LEVELDB_DEFINE_BUFFER(key);
 
 	leveldb::Status status;
 
@@ -454,7 +427,7 @@ static PyObject* PyLevelDB_Delete(PyLevelDB* self, PyObject* args, PyObject* kwd
 
 	PY_LEVELDB_BEGIN_ALLOW_THREADS
 
-	PY_LEVELDB_SLICE(key);
+	leveldb::Slice key_slice = PY_LEVELDB_SLICE_VALUE(key);
 
 	leveldb::WriteOptions options;
 	options.sync = (sync == Py_True) ? true : false;
@@ -487,9 +460,6 @@ static PyObject* PyWriteBatch_Put(PyWriteBatch* self, PyObject* args)
 	op.is_put = true;
 
 	PY_LEVELDB_BEGIN_ALLOW_THREADS
-
-	PY_LEVELDB_SLICE(key);
-	PY_LEVELDB_SLICE(value);
 
 	op.key = PY_LEVELDB_STRING(key);
 	op.value = PY_LEVELDB_STRING(value);
@@ -732,6 +702,61 @@ static PyObject* PyLevelDB_CreateSnapshot(PyLevelDB* self)
 	return PyLevelDBSnapshot_New(self, snapshot);
 }
 
+static PyObject* PyLevelDB_CompactRange(PyLevelDB* self, PyObject* args, PyObject* kwds)
+{
+	PyObject* _start = Py_None;
+	PyObject* _end = Py_None;
+
+	int is_start = 0;
+	int is_end = 0;
+
+	PY_LEVELDB_DEFINE_BUFFER(a);
+	PY_LEVELDB_DEFINE_BUFFER(b);
+
+	const char* kwargs[] = {"start", "end", 0};
+
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, (char*)"|OO", (char**)kwargs, &_start, &_end))
+		return 0;
+
+	if (_start != Py_None) {
+		is_start = 1;
+
+		if (!PyArg_Parse(_start, (char*)PARAM_S, PARAM_V(a)))
+			return 0;
+	}
+
+	if (_end != Py_None) {
+		is_end = 1;
+
+		if (!PyArg_Parse(_end, (char*)PARAM_S, PARAM_V(b)))
+			return 0;
+	}
+
+	Py_BEGIN_ALLOW_THREADS
+
+	leveldb::Slice start_slice("");
+	leveldb::Slice end_slice("");
+
+	if (is_start)
+		start_slice = PY_LEVELDB_SLICE_VALUE(a);
+
+	if (is_end)
+		end_slice = PY_LEVELDB_SLICE_VALUE(b);
+
+	self->_db->CompactRange(is_start ? &start_slice : 0, is_end ? &end_slice : 0);
+
+	Py_END_ALLOW_THREADS
+
+	if (is_start)
+		PY_LEVELDB_RELEASE_BUFFER(a);
+
+	if (is_end)
+		PY_LEVELDB_RELEASE_BUFFER(b);
+
+	Py_INCREF(Py_None);
+	return Py_None;
+}
+
 static PyMethodDef PyLevelDB_methods[] = {
 	{(char*)"Put",            (PyCFunction)PyLevelDB_Put,       METH_VARARGS | METH_KEYWORDS, (char*)"add a key/value pair to database, with an optional synchronous disk write" },
 	{(char*)"Get",            (PyCFunction)PyLevelDB_Get,       METH_VARARGS | METH_KEYWORDS, (char*)"get a value from the database" },
@@ -740,6 +765,7 @@ static PyMethodDef PyLevelDB_methods[] = {
 	{(char*)"RangeIter",      (PyCFunction)PyLevelDB_RangeIter, METH_VARARGS | METH_KEYWORDS, (char*)"key/value range scan"},
 	{(char*)"GetStats",       (PyCFunction)PyLevelDB_GetStatus, METH_VARARGS | METH_NOARGS,   (char*)"get a mapping of all DB statistics"},
 	{(char*)"CreateSnapshot", (PyCFunction)PyLevelDB_CreateSnapshot, METH_NOARGS, (char*)"create a new snapshot from current DB state"},
+	{(char*)"CompactRange", (PyCFunction)PyLevelDB_CompactRange, METH_VARARGS | METH_KEYWORDS, (char*)"Compact keys in the range"},
 	{NULL}
 };
 
@@ -800,6 +826,47 @@ static const leveldb::Comparator* pyleveldb_get_comparator(PyObject* comparator)
 	}
 
 	return c;
+}
+
+const char pyleveldb_repair_db_doc[] =
+"leveldb.RepairDB(db_dir)\n\nAttempts to recover as much data as possible from a corrupt database."
+;
+PyObject* pyleveldb_repair_db(PyLevelDB* self, PyObject* args, PyObject* kwds)
+{
+	const char* db_dir = 0;
+
+	const char* kwargs[] = {"filename", "comparator", 0};
+	PyObject* comparator = 0;
+
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, (char*)"s|O", (char**)kwargs,
+									 &db_dir,
+									 &comparator))
+		return 0;
+
+	// get comparator
+	const leveldb::Comparator* c = pyleveldb_get_comparator(comparator);
+	if (c == 0) {
+		PyErr_SetString(leveldb_exception, "error loading comparator");
+		return NULL;
+	}
+
+	std::string _db_dir(db_dir);
+	leveldb::Status status;
+	leveldb::Options options;
+
+	options.comparator = c;
+
+	Py_BEGIN_ALLOW_THREADS
+	status = leveldb::RepairDB(_db_dir.c_str(), options);
+	Py_END_ALLOW_THREADS
+
+	if (!status.ok()) {
+		PyLevelDB_set_error(status);
+		return 0;
+	}
+
+	Py_INCREF(Py_None);
+	return Py_None;
 }
 
 static int PyLevelDB_init(PyLevelDB* self, PyObject* args, PyObject* kwds)
@@ -986,11 +1053,10 @@ PyDoc_STRVAR(PyLevelDB_doc,
 "filename                                    the database directory\n"
 "create_if_missing (default: True)           if True, creates a new database if none exists\n"
 "error_if_exists   (default: False)          if True, raises and error if the database already exists\n"
-"paranoid_checks   (default: False)          if True, raises an error as soon as an internal corruption is detected\n" 
+"paranoid_checks   (default: False)          if True, raises an error as soon as an internal corruption is detected\n"
 "block_cache_size  (default: 8 * (2 << 20))  maximum allowed size for the block cache in bytes\n"
 "write_buffer_size (default  2 * (2 << 20))  \n"
-"block_size        (default: 4096)           unit of transfer for the block cache in bytes\n"
-"max_open_files:   (default: 1000)\n"
+"block_size        (default: 4096)           unit of transfer for the block cache in bytes\n""max_open_files:   (default: 1000)\n"
 "block_restart_interval           \n"
 "\n"
 "Snappy compression is used, if available.\n"
