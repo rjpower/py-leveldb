@@ -1,21 +1,38 @@
 #!/usr/bin/python
 
 # Copyright (c) Arni Mar Jonsson.
+# 
+# Updates to setup.py/PyPi - Russell Power (power@cs.nyu.edu)
+#
+#
 # See LICENSE for details.
 
+import glob
 import sys
 
-try:
-	from setuptools import setup, Extension
-except ImportError:
-	from distutils.core import setup, Extension
+import ez_setup
+ez_setup.use_setuptools()
 
-extra_compile_args = ['-I./leveldb/include', '-fPIC', '-Wall', '-g2', '-D_GNU_SOURCE', '-O2', '-DNDEBUG']
-extra_link_args = ['-L./leveldb', '-Bstatic', '-lleveldb', '-L./snappy-read-only/.libs/', '-Bstatic', '-lsnappy']
+from setuptools import setup, Extension
+
+extra_compile_args = [
+    '-pthread',
+    '-I./leveldb/include',
+    '-I./leveldb', 
+    '-Wall', 
+    '-fno-builtin-memcmp',
+    '-D_GNU_SOURCE',
+    '-DOS_LINUX',
+    '-DLEVELDB_PLATFORM_POSIX',
+    '-DNDEBUG',
+    '-O2',
+    '-g2', 
+    '-fPIC',
+    ]
 
 setup(
 	name = 'leveldb',
-	version = '0.1',
+	version = '0.12',
 	maintainer = 'Arni Mar Jonsson',
 	maintainer_email = 'arnimarj@gmail.com',
 	url = 'http://code.google.com/p/py-leveldb/',
@@ -48,6 +65,52 @@ setup(
 	ext_modules = [
 		Extension('leveldb',
 			sources = [
+                # snappy
+                './snappy/snappy.cc',
+                './snappy/snappy-stubs-internal.cc',
+                './snappy/snappy-sinksource.cc',
+                './snappy/snappy-c.cc',
+
+                #leveldb
+                'leveldb/db/builder.cc', 
+                'leveldb/db/c.cc', 
+                'leveldb/db/db_impl.cc', 
+                'leveldb/db/db_iter.cc', 
+                'leveldb/db/dbformat.cc', 
+                'leveldb/db/filename.cc', 
+                'leveldb/db/log_reader.cc', 
+                'leveldb/db/log_writer.cc', 
+                'leveldb/db/memtable.cc', 
+                'leveldb/db/repair.cc', 
+                'leveldb/db/table_cache.cc', 
+                'leveldb/db/version_edit.cc', 
+                'leveldb/db/version_set.cc', 
+                'leveldb/db/write_batch.cc', 
+                'leveldb/table/block.cc', 
+                'leveldb/table/block_builder.cc', 
+                'leveldb/table/filter_block.cc', 
+                'leveldb/table/format.cc', 
+                'leveldb/table/iterator.cc', 
+                'leveldb/table/merger.cc', 
+                'leveldb/table/table.cc', 
+                'leveldb/table/table_builder.cc', 
+                'leveldb/table/two_level_iterator.cc', 
+                'leveldb/util/arena.cc', 
+                'leveldb/util/bloom.cc', 
+                'leveldb/util/cache.cc', 
+                'leveldb/util/coding.cc', 
+                'leveldb/util/comparator.cc', 
+                'leveldb/util/crc32c.cc', 
+                'leveldb/util/env.cc', 
+                'leveldb/util/env_posix.cc', 
+                'leveldb/util/filter_policy.cc', 
+                'leveldb/util/hash.cc', 
+                'leveldb/util/histogram.cc', 
+                'leveldb/util/logging.cc', 
+                'leveldb/util/options.cc', 
+                'leveldb/util/status.cc', 
+                'leveldb/port/port_posix.cc', 
+
 				# python stuff
 				'leveldb_ext.cc',
 				'leveldb_object.cc',
@@ -55,7 +118,6 @@ setup(
 			libraries = ['stdc++'],
 
 			extra_compile_args = extra_compile_args,
-			extra_link_args = extra_link_args
 		)
 	]
 )
