@@ -1,20 +1,11 @@
-py-leveldb: Python bindings for LevelDB (http://code.google.com/p/leveldb/)
-author: Arni Mar Jonsson (arnimarj@gmail.com)
 
 Build Instructions
 ------------------
 
-First of all, you need to build the included leveldb library:
+pip install [--user] leveldb
 
-$ ./compile_leveldb.sh
-
-Then, the extension itself:
-
-$ python setup.py build
-
-And, optionally, install it:
-
-$ sudo python setup.py install
+**NB** If you have issues with this step, please contact Russell (power@cs.nyu.edu).
+I'm responsible for the PyPi package upload and any resulting errors.
 
 Example Usage
 -------------
@@ -40,3 +31,8 @@ KeyError
 ...
 >>> db.Write(batch, sync = True)
 >>>
+
+---------------------
+
+Author: Arni Mar Jonsson (arnimarj@gmail.com) - http://code.google.com/p/leveldb/
+

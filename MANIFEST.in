@@ -1,0 +1,12 @@
+include leveldb/include/leveldb/*.h
+include leveldb/db/*.h
+include leveldb/table/*.h
+include leveldb/util/*.h
+include leveldb/port/*.h
+include leveldb/db/*.cc
+include leveldb/table/*.cc
+include leveldb/util/*.cc
+include leveldb/port/*.cc
+include leveldb/*.cc
+include snappy/*.h
+include snappy/*.cc
