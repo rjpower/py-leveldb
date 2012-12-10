@@ -8,6 +8,7 @@
 # See LICENSE for details.
 
 import glob
+import platform
 import sys
 
 import ez_setup
@@ -15,24 +16,35 @@ ez_setup.use_setuptools()
 
 from setuptools import setup, Extension
 
-extra_compile_args = [
-    '-pthread',
-    '-I./leveldb/include',
-    '-I./leveldb', 
-    '-Wall', 
-    '-fno-builtin-memcmp',
-    '-D_GNU_SOURCE',
-    '-DOS_LINUX',
-    '-DLEVELDB_PLATFORM_POSIX',
-    '-DNDEBUG',
-    '-O2',
-    '-g2', 
-    '-fPIC',
-    ]
+system,node,release,version,machine,processor = platform.uname()
+common_flags = [
+      '-I./leveldb/include',
+      '-I./leveldb', 
+      '-fno-builtin-memcmp',
+      '-O2',
+      '-fPIC',
+      '-DNDEBUG',
+]
+
+if system == 'MacOS':
+  extra_compile_args = common_flags + [
+      '-DOS_MACOSX',
+      '-DLEVELDB_PLATFORM_POSIX',
+      ]
+elif system == 'Linux':
+  extra_compile_args = common_flags + [
+      '-pthread',
+      '-Wall', 
+      '-DOS_LINUX',
+      '-DLEVELDB_PLATFORM_POSIX',
+      ]
+else:
+  print >>sys.stderr, "Don't know how to compile leveldb for %s!" % system
+  sys.exit(0)
 
 setup(
 	name = 'leveldb',
-	version = '0.12',
+	version = '0.13',
 	maintainer = 'Arni Mar Jonsson',
 	maintainer_email = 'arnimarj@gmail.com',
 	url = 'http://code.google.com/p/py-leveldb/',
