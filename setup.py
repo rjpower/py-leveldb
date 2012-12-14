@@ -26,7 +26,7 @@ common_flags = [
       '-DNDEBUG',
 ]
 
-if system == 'MacOS':
+if system == 'Darwin':
   extra_compile_args = common_flags + [
       '-DOS_MACOSX',
       '-DLEVELDB_PLATFORM_POSIX',
@@ -44,9 +44,9 @@ else:
 
 setup(
 	name = 'leveldb',
-	version = '0.13',
-	maintainer = 'Arni Mar Jonsson',
-	maintainer_email = 'arnimarj@gmail.com',
+	version = '0.14',
+	maintainer = 'Russell Power',
+	maintainer_email = 'russell.power@gmail.com',
 	url = 'http://code.google.com/p/py-leveldb/',
 
 	classifiers = [
