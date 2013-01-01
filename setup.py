@@ -19,7 +19,8 @@ from setuptools import setup, Extension
 system,node,release,version,machine,processor = platform.uname()
 common_flags = [
       '-I./leveldb/include',
-      '-I./leveldb', 
+      '-I./leveldb',
+      '-I.',
       '-fno-builtin-memcmp',
       '-O2',
       '-fPIC',
