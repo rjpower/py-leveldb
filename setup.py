@@ -45,7 +45,7 @@ else:
 
 setup(
 	name = 'leveldb',
-	version = '0.14',
+	version = '0.16',
 	maintainer = 'Russell Power',
 	maintainer_email = 'russell.power@gmail.com',
 	url = 'http://code.google.com/p/py-leveldb/',
@@ -129,7 +129,6 @@ setup(
 				'leveldb_object.cc',
 			],
 			libraries = ['stdc++'],
-
 			extra_compile_args = extra_compile_args,
 		)
 	]
