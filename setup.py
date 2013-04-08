@@ -25,6 +25,7 @@ common_flags = [
       '-O2',
       '-fPIC',
       '-DNDEBUG',
+      '-DSNAPPY',
 ]
 
 if system == 'Darwin':
@@ -45,7 +46,7 @@ else:
 
 setup(
 	name = 'leveldb',
-	version = '0.16',
+	version = '0.17',
 	maintainer = 'Russell Power',
 	maintainer_email = 'russell.power@gmail.com',
 	url = 'http://code.google.com/p/py-leveldb/',
