@@ -85,6 +85,7 @@ typedef struct {
 extern PyTypeObject PyLevelDB_Type;
 extern PyTypeObject PyLevelDBSnapshot_Type;
 extern PyTypeObject PyWriteBatch_Type;
+extern PyTypeObject PyLevelDBIter_Type;
 
 #define PyLevelDB_Check(op) PyObject_TypeCheck(op, &PyLevelDB_Type)
 #define PyLevelDBSnapshotCheck(op) PyObject_TypeCheck(op, &PyLevelDBSnapshot_Type)

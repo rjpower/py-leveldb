@@ -10,6 +10,7 @@ class TestLevelDB(unittest.TestCase):
 		# import local leveldb
 		import leveldb as _leveldb
 		self.leveldb = _leveldb
+		dir(self.leveldb)
 
 		# Python2/3 compat
 		if hasattr(string, 'lowercase'):
@@ -39,7 +40,7 @@ class TestLevelDB(unittest.TestCase):
 
 		# repair/destroy previous database, if any
 		self.name = 'db_a'
-		self.leveldb.RepairDB(self.name, comparator = self.comparator)
+		#self.leveldb.RepairDB(self.name, comparator = self.comparator)
 		self.leveldb.DestroyDB(self.name)
 
 	def _open_options(self, create_if_missing = True, error_if_exists = False):
@@ -59,7 +60,9 @@ class TestLevelDB(unittest.TestCase):
 
 	def _open(self, *args, **kwargs):
 		options = self._open_options(*args, **kwargs)
-		return self.leveldb.LevelDB(self.name, **options)
+		db = self.leveldb.LevelDB(self.name, **options)
+		dir(db)
+		return db
 
 	def testIteratorNone(self):
 		options = self._open_options()
@@ -87,7 +90,8 @@ class TestLevelDB(unittest.TestCase):
 		db = self.leveldb.LevelDB(self.name, **options)
 		db.Put(self._s('a'), self._s('b'))
 		i = db.RangeIter(include_value = False, reverse = True)
-		#del self.leveldb
+		dir(i)
+		del self.leveldb
 
 	def _s(self, s):
 		if sys.version_info[0] >= 3:
@@ -105,6 +109,7 @@ class TestLevelDB(unittest.TestCase):
 		# destroy database, if any
 		db.Put(self._s('foo'), self._s('v1'))
 		s1 = db.CreateSnapshot()
+		dir(s1)
 
 		db.Put(self._s('foo'), self._s('v2'))
 		s2 = db.CreateSnapshot()
@@ -145,6 +150,7 @@ class TestLevelDB(unittest.TestCase):
 
 	def ClearDB_batch(self, db):
 		b = self.leveldb.WriteBatch()
+		dir(b)
 
 		for k in db.RangeIter(include_value = False, reverse = True):
 			b.Delete(k)

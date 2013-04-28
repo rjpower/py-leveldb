@@ -9,13 +9,12 @@ set -e
 	cd download;
 
 	# see http://python.org/download/releases/
-
-	wget -qc http://python.org/ftp/python/3.3.0/Python-3.3.0.tar.bz2;
-	wget -qc http://python.org/ftp/python/3.2.3/Python-3.2.3.tar.bz2;
+	wget -qc http://python.org/ftp/python/3.3.1/Python-3.3.1.tar.bz2;
+	wget -qc http://python.org/ftp/python/3.2.4/Python-3.2.4.tar.bz2;
 	wget -qc http://python.org/ftp/python/3.2.3/Python-3.2.3.tar.bz2;
 	wget -qc http://python.org/ftp/python/3.1.5/Python-3.1.5.tar.bz2;
 	wget -qc http://python.org/ftp/python/3.0.1/Python-3.0.1.tar.bz2;
-	wget -qc http://python.org/ftp/python/2.7.3/Python-2.7.3.tar.bz2;
+	wget -qc http://python.org/ftp/python/2.7.4/Python-2.7.4.tar.bz2;
 	wget -qc http://python.org/ftp/python/2.6.8/Python-2.6.8.tar.bz2;
 	wget -qc http://python.org/ftp/python/2.5.6/Python-2.5.6.tar.bz2;
 	wget -qc http://python.org/ftp/python/2.4.6/Python-2.4.6.tar.bz2;
@@ -24,16 +23,12 @@ set -e
 	for i in `ls | grep bz2$`; do bzip2 -dc $i | tar -x; done
 
 	# apply patches
-	for i in `find -maxdepth 1 -type d | grep ^./P | grep -v build | grep -v env | grep -v 3.3.0 | sort`; do
+	for i in `find -maxdepth 1 -type d | grep ^./P | grep -v build | grep -v env | grep -v 3.3.1 | grep -v 2.7.4 | sort`; do
 	(
 		cd $i;
+		echo $i
 		patch -s < ../../setup.py.patch;
 	) done
-
-	(
-		cd Python-3.3.0;
-		patch -s < ../../setup.py.3.3.patch;
-	)
 
 	# build
 	for i in `find -maxdepth 1 -type d | grep ^./P | grep -v build | grep -v env | sort`; do
@@ -56,8 +51,8 @@ set -e
 
 	(
 		unset PYTHONDONTWRITEBYTECODE;
-		rm -rf Python-3.3.0-env;
-		Python-3.3.0-build/bin/pyvenv Python-3.3.0-env;
-		source Python-3.3.0-env/bin/activate;
+		rm -rf Python-3.3.1-env;
+		Python-3.3.1-build/bin/pyvenv Python-3.3.1-env;
+		source Python-3.3.1-env/bin/activate;
 	)
 )

@@ -90,6 +90,11 @@ extern "C" void initleveldb(void)
 		INITERROR;
 	}
 
+	if (PyType_Ready(&PyLevelDBIter_Type) < 0) {
+		Py_DECREF(leveldb_module);
+		INITERROR;
+	}
+
 	// add custom types to the different modules
 	Py_INCREF(&PyLevelDB_Type);
 

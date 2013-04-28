@@ -13,6 +13,8 @@ set -e
 		source $i-env/bin/activate;
 		(
 			cd ../..;
+			pwd;
+			which python;
 			python setup.py build --force > /dev/null;
 			python setup.py install > /dev/null;
 			(
