@@ -16,6 +16,29 @@ ez_setup.use_setuptools()
 
 from setuptools import setup, Extension
 
+# for local testing / recompiling; compile sources in parallel.
+FAST_COMPILE = 0
+
+if FAST_COMPILE:
+  def parallelCCompile(self, sources, output_dir=None, macros=None, include_dirs=None, debug=0, extra_preargs=None, extra_postargs=None, depends=None):
+      # those lines are copied from distutils.ccompiler.CCompiler directly
+      macros, objects, extra_postargs, pp_opts, build =  self._setup_compile(output_dir, macros, include_dirs, sources, depends, extra_postargs)
+      cc_args = self._get_cc_args(pp_opts, debug, extra_preargs)
+      # parallel code
+      N=16 # number of parallel compilations
+      import multiprocessing.pool
+      def _single_compile(obj):
+          try: src, ext = build[obj]
+          except KeyError: return
+          self._compile(obj, src, ext, cc_args, extra_postargs, pp_opts)
+      # convert to list, imap is evaluated on-demand
+      list(multiprocessing.pool.ThreadPool(N).imap(_single_compile,objects))
+      return objects
+
+  import distutils.ccompiler
+  distutils.ccompiler.CCompiler.compile=parallelCCompile
+
+
 system,node,release,version,machine,processor = platform.uname()
 common_flags = [
       '-I./leveldb/include',
@@ -47,7 +70,7 @@ else:
 
 setup(
 	name = 'leveldb',
-	version = '0.18',
+	version = '0.19',
 	maintainer = 'Russell Power',
 	maintainer_email = 'russell.power@gmail.com',
 	url = 'http://code.google.com/p/py-leveldb/',
@@ -74,8 +97,9 @@ setup(
 
 	description = 'Python bindings for leveldb database library',
 
-	packages = ['leveldb'],
-	package_dir = {'leveldb': ''},
+  #py_modules = ['leveldb'],
+	#packages = ['leveldb'],
+	#package_dir = {'leveldb': ''},
 
 	ext_modules = [
 		Extension('leveldb',
