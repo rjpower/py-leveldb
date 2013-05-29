@@ -20,6 +20,7 @@ system,node,release,version,machine,processor = platform.uname()
 common_flags = [
       '-I./leveldb/include',
       '-I./leveldb',
+      '-I./snappy',
       '-I.',
       '-fno-builtin-memcmp',
       '-O2',
@@ -46,7 +47,7 @@ else:
 
 setup(
 	name = 'leveldb',
-	version = '0.17',
+	version = '0.18',
 	maintainer = 'Russell Power',
 	maintainer_email = 'russell.power@gmail.com',
 	url = 'http://code.google.com/p/py-leveldb/',
