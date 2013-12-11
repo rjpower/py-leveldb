@@ -70,9 +70,9 @@ else:
 
 setup(
 	name = 'leveldb',
-	version = '0.19',
-	maintainer = 'Russell Power',
-	maintainer_email = 'russell.power@gmail.com',
+	version = '0.191',
+	maintainer = 'Arni Mar Jonsson'
+	maintainer_email = 'arnimarkj@gmail.com'
 	url = 'http://code.google.com/p/py-leveldb/',
 
 	classifiers = [
