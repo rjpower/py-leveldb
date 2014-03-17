@@ -71,8 +71,8 @@ else:
 setup(
 	name = 'leveldb',
 	version = '0.191',
-	maintainer = 'Arni Mar Jonsson'
-	maintainer_email = 'arnimarkj@gmail.com'
+	maintainer = 'Arni Mar Jonsson',
+	maintainer_email = 'arnimarkj@gmail.com',
 	url = 'http://code.google.com/p/py-leveldb/',
 
 	classifiers = [
