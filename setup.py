@@ -56,6 +56,7 @@ if system == 'Darwin':
   extra_compile_args = common_flags + [
       '-DOS_MACOSX',
       '-DLEVELDB_PLATFORM_POSIX',
+      '-Wno-error=unused-command-line-argument-hard-error-in-future',
       ]
 elif system == 'Linux':
   extra_compile_args = common_flags + [
