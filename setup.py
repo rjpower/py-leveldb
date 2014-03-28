@@ -11,33 +11,7 @@ import glob
 import platform
 import sys
 
-import ez_setup
-ez_setup.use_setuptools()
-
 from setuptools import setup, Extension
-
-# for local testing / recompiling; compile sources in parallel.
-FAST_COMPILE = 0
-
-if FAST_COMPILE:
-  def parallelCCompile(self, sources, output_dir=None, macros=None, include_dirs=None, debug=0, extra_preargs=None, extra_postargs=None, depends=None):
-      # those lines are copied from distutils.ccompiler.CCompiler directly
-      macros, objects, extra_postargs, pp_opts, build =  self._setup_compile(output_dir, macros, include_dirs, sources, depends, extra_postargs)
-      cc_args = self._get_cc_args(pp_opts, debug, extra_preargs)
-      # parallel code
-      N=16 # number of parallel compilations
-      import multiprocessing.pool
-      def _single_compile(obj):
-          try: src, ext = build[obj]
-          except KeyError: return
-          self._compile(obj, src, ext, cc_args, extra_postargs, pp_opts)
-      # convert to list, imap is evaluated on-demand
-      list(multiprocessing.pool.ThreadPool(N).imap(_single_compile,objects))
-      return objects
-
-  import distutils.ccompiler
-  distutils.ccompiler.CCompiler.compile=parallelCCompile
-
 
 system,node,release,version,machine,processor = platform.uname()
 common_flags = [
@@ -71,7 +45,7 @@ else:
 
 setup(
 	name = 'leveldb',
-	version = '0.191',
+	version = '0.193',
 	maintainer = 'Arni Mar Jonsson',
 	maintainer_email = 'arnimarkj@gmail.com',
 	url = 'http://code.google.com/p/py-leveldb/',
@@ -98,58 +72,54 @@ setup(
 
 	description = 'Python bindings for leveldb database library',
 
-  #py_modules = ['leveldb'],
-	#packages = ['leveldb'],
-	#package_dir = {'leveldb': ''},
-
 	ext_modules = [
 		Extension('leveldb',
 			sources = [
-                # snappy
-                './snappy/snappy.cc',
-                './snappy/snappy-stubs-internal.cc',
-                './snappy/snappy-sinksource.cc',
-                './snappy/snappy-c.cc',
+        # snappy
+        './snappy/snappy.cc',
+        './snappy/snappy-stubs-internal.cc',
+        './snappy/snappy-sinksource.cc',
+        './snappy/snappy-c.cc',
 
-                #leveldb
-                'leveldb/db/builder.cc', 
-                'leveldb/db/c.cc', 
-                'leveldb/db/db_impl.cc', 
-                'leveldb/db/db_iter.cc', 
-                'leveldb/db/dbformat.cc', 
-                'leveldb/db/filename.cc', 
-                'leveldb/db/log_reader.cc', 
-                'leveldb/db/log_writer.cc', 
-                'leveldb/db/memtable.cc', 
-                'leveldb/db/repair.cc', 
-                'leveldb/db/table_cache.cc', 
-                'leveldb/db/version_edit.cc', 
-                'leveldb/db/version_set.cc', 
-                'leveldb/db/write_batch.cc', 
-                'leveldb/table/block.cc', 
-                'leveldb/table/block_builder.cc', 
-                'leveldb/table/filter_block.cc', 
-                'leveldb/table/format.cc', 
-                'leveldb/table/iterator.cc', 
-                'leveldb/table/merger.cc', 
-                'leveldb/table/table.cc', 
-                'leveldb/table/table_builder.cc', 
-                'leveldb/table/two_level_iterator.cc', 
-                'leveldb/util/arena.cc', 
-                'leveldb/util/bloom.cc', 
-                'leveldb/util/cache.cc', 
-                'leveldb/util/coding.cc', 
-                'leveldb/util/comparator.cc', 
-                'leveldb/util/crc32c.cc', 
-                'leveldb/util/env.cc', 
-                'leveldb/util/env_posix.cc', 
-                'leveldb/util/filter_policy.cc', 
-                'leveldb/util/hash.cc', 
-                'leveldb/util/histogram.cc', 
-                'leveldb/util/logging.cc', 
-                'leveldb/util/options.cc', 
-                'leveldb/util/status.cc', 
-                'leveldb/port/port_posix.cc', 
+        #leveldb
+        'leveldb/db/builder.cc', 
+        'leveldb/db/c.cc', 
+        'leveldb/db/db_impl.cc', 
+        'leveldb/db/db_iter.cc', 
+        'leveldb/db/dbformat.cc', 
+        'leveldb/db/filename.cc', 
+        'leveldb/db/log_reader.cc', 
+        'leveldb/db/log_writer.cc', 
+        'leveldb/db/memtable.cc', 
+        'leveldb/db/repair.cc', 
+        'leveldb/db/table_cache.cc', 
+        'leveldb/db/version_edit.cc', 
+        'leveldb/db/version_set.cc', 
+        'leveldb/db/write_batch.cc', 
+        'leveldb/table/block.cc', 
+        'leveldb/table/block_builder.cc', 
+        'leveldb/table/filter_block.cc', 
+        'leveldb/table/format.cc', 
+        'leveldb/table/iterator.cc', 
+        'leveldb/table/merger.cc', 
+        'leveldb/table/table.cc', 
+        'leveldb/table/table_builder.cc', 
+        'leveldb/table/two_level_iterator.cc', 
+        'leveldb/util/arena.cc', 
+        'leveldb/util/bloom.cc', 
+        'leveldb/util/cache.cc', 
+        'leveldb/util/coding.cc', 
+        'leveldb/util/comparator.cc', 
+        'leveldb/util/crc32c.cc', 
+        'leveldb/util/env.cc', 
+        'leveldb/util/env_posix.cc', 
+        'leveldb/util/filter_policy.cc', 
+        'leveldb/util/hash.cc', 
+        'leveldb/util/histogram.cc', 
+        'leveldb/util/logging.cc', 
+        'leveldb/util/options.cc', 
+        'leveldb/util/status.cc', 
+        'leveldb/port/port_posix.cc', 
 
 				# python stuff
 				'leveldb_ext.cc',
