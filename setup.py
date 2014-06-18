@@ -120,9 +120,9 @@ setup(
                 'leveldb/util/status.cc',
                 'leveldb/port/port_posix.cc',
 
-				# python stuff
-				'leveldb_ext.cc',
-				'leveldb_object.cc',
+                # python stuff
+                'leveldb_ext.cc',
+                'leveldb_object.cc',
 		    ],
 			libraries = ['stdc++'],
 			extra_compile_args = extra_compile_args,
