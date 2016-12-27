@@ -901,11 +901,13 @@ static int PyLevelDB_init(PyLevelDB* self, PyObject* args, PyObject* kwds)
 	int block_size = 4096;
 	int max_open_files = 1000;
 	int block_restart_interval = 16;
-	const char* kwargs[] = {"filename", "create_if_missing", "error_if_exists", "paranoid_checks", "write_buffer_size", "block_size", "max_open_files", "block_restart_interval", "block_cache_size", "comparator", 0};
+  int max_file_size = 2 << 20;
+	const char* kwargs[] = {"filename", "create_if_missing", "error_if_exists", "paranoid_checks", "write_buffer_size",
+    "block_size", "max_open_files", "block_restart_interval", "block_cache_size", "max_file_size", "comparator", 0};
 
 	PyObject* comparator = 0;
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, (char*)"s|O!O!O!iiiiiO", (char**)kwargs,
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, (char*)"s|O!O!O!iiiiiiO", (char**)kwargs,
 		&db_dir,
 		&PyBool_Type, &create_if_missing,
 		&PyBool_Type, &error_if_exists,
@@ -915,6 +917,7 @@ static int PyLevelDB_init(PyLevelDB* self, PyObject* args, PyObject* kwds)
 		&max_open_files,
 		&block_restart_interval,
 		&block_cache_size,
+		&max_file_size,
 		&comparator))
 		return -1;
 
@@ -960,6 +963,7 @@ static int PyLevelDB_init(PyLevelDB* self, PyObject* args, PyObject* kwds)
 	self->_options->block_restart_interval = block_restart_interval;
 	self->_options->compression = leveldb::kSnappyCompression;
 	self->_options->block_cache = self->_cache;
+	self->_options->max_file_size = max_file_size;
 	self->_options->comparator = self->_comparator;
 	leveldb::Status status;
 

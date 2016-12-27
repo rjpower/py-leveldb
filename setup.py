@@ -44,7 +44,7 @@ else:
 
 setup(
     name = 'leveldb',
-    version = '0.193',
+    version = '0.20',
     maintainer = 'Arni Mar Jonsson',
     maintainer_email = 'arnimarkj@gmail.com',
     url = 'https://code.google.com/p/py-leveldb/',
