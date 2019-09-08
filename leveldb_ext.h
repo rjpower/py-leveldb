@@ -4,9 +4,11 @@
 #ifndef __LEVELDB__MODULE__H__
 #define __LEVELDB__MODULE__H__
 
-extern "C" {
+extern "C++" {
 #include <Python.h>
+}
 
+extern "C" {
 #include "structmember.h"
 
 #include <stdlib.h>
