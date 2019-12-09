@@ -12,3 +12,4 @@ include snappy/*.h
 include snappy/*.cc
 include *.cc
 include *.h
+include LICENSE
