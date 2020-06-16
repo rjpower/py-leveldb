@@ -47,7 +47,7 @@ setup(
     version = '0.20',
     maintainer = 'Arni Mar Jonsson',
     maintainer_email = 'arnimarkj@gmail.com',
-    url = 'https://code.google.com/p/py-leveldb/',
+    url = 'https://github.com/rjpower/py-leveldb',
 
     classifiers = [
         'Development Status :: 4 - Beta',
